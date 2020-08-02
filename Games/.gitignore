@@ -1,0 +1,8 @@
+*
+!/templates
+!/templates/*
+!/templates/data/*
+!/makefiles
+!/makefiles/*
+!.gitignore
+!new_game.sh

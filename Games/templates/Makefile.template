@@ -1,0 +1,26 @@
+# Game template
+
+GAME_NAME := @GAME_NAME@
+
+GAME_VER  := @GAME_VER@
+
+GAME_EXE  := @GAME_EXE@
+
+# Always.
+include ../makefiles/Makefile.common
+
+include ../makefiles/Makefile.lib8bpl
+include ../makefiles/Makefile.libTilengine
+include ../makefiles/Makefile.libstb
+include ../makefiles/Makefile.libcute_headers
+
+game_release: 8bpl_release
+game_release: tilengine_release
+game_release: stb
+game_release: cute_headers
+
+game_debug: 8bpl_debug
+game_debug: tilengine_debug
+game_debug: stb
+game_debug: cute_headers
+

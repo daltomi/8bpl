@@ -1,0 +1,8 @@
+# 8bpl
+# DO NOT CHANGE
+
+CFLAGS += -I../../Libraries/cute_headers/include
+
+cute_headers:
+	$(shell mkdir -p $(GAME_DIR_LIB)/)
+

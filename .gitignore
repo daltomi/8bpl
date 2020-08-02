@@ -1,0 +1,7 @@
+Libraries/8bpl/*.a.*
+Libraries/8bpl/src/*.o
+Libraries/8bpl/include/config.h
+
+Libraries/Tilengine/*.a.*
+Libraries/Tilengine/src/*.o
+

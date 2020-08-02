@@ -1,0 +1,385 @@
+/*
+  8bpl - Copyright (c) daltomi <daltomi@disroot.org>
+  This software is provided 'as-is', without any express or implied warranty.
+  In no event will the authors be held liable for any damages arising from
+  the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not claim
+  that you wrote the original software. If you use this software in a product,
+  an acknowledgment in the product documentation would be appreciated but is
+  not required.
+
+  2. Altered source versions must be plainly marked as such, and must not be
+  misrepresented as being the original software.
+
+  3. This notice may not be removed or altered from any source distribution.
+*/
+
+
+/*
+	It is just an example. This code may not show good programming practices.
+
+*/
+
+/*
+	Prefix      Function Library
+	-------    ----------------
+	TLN_       Tilengine
+
+	Text_       8bpl
+	Sound_       *
+	State_       *
+
+	SDL_       SDL
+*/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdarg.h>
+
+#include "config.h"
+
+enum {
+	TEXT_NOTICE = 0,
+	TEXT_PAUSE,
+	TEXTS,
+	MAP = TEXTS,
+	LAYERS
+};
+
+
+enum {
+// Look, we are going to load 2 sound files and we have 3 play entities, how is this possible? Look on CreateSound().
+// sound files ids
+	SND_FILE_KEY = 0,
+	SND_FILE_EOL,
+	SND_FILE_MAX, /* max load files */
+// play entities ids
+	SND_PLAY_KEY = 0,
+	SND_PLAY_EOL,
+	SND_PLAY_PAUSE,
+	SND_PLAY_MAX /* max play entities */
+};
+
+
+enum {
+	STATE_BOARD,
+	STATE_PAUSE,
+	STATE_MAX
+};
+
+static wchar_t const* const textNotice =
+L"\n\xDA\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4"
+L"\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4"
+L"\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xBF\n"
+L"\n"
+L" 8bpl (8 Bits Per Linux) framework\n"
+L"\n"
+L" Author: daltomi\n"
+L"\n"
+L" Email: daltomi@disroot.org\n"
+L"\n"
+L" https://git.disroot.org/daltomi/8bpl\n"
+L"\n"
+L"\xC0\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4"
+L"\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4"
+L"\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xD9\n"
+L"\n"
+L"\x10 Language: \3 C99 \3\n"
+L"\n"
+L"\x10 Graphic engine: \3 www.tilengine.org  \3\n";
+
+
+static float fps = 0;
+static U32 row = 2;
+static U32 col = 0;
+static TLN_Palette palWhite = 0;
+static BOOL haveFocus = TRUE;
+
+static TLN_Tilemap map;
+
+static void CreateState(void);
+static void DestroyState(void);
+
+static bool DrawTextNotice(void);
+static void DrawTextNoticeExit(void);
+static void DrawTextPause(void);
+
+static void CreateText(void);
+static void DestroyText(void);
+
+static void CreateMap(void);
+static void DestroyMap(void);
+
+static void CreateSound(void);
+static void DestroySound(void);
+
+static void CalculateFPS(U64 const start, U64 const end);
+
+
+
+/* MAIN ********************************************/
+
+int main(void)
+{
+	TLN_Init(GAME_SCREEN_WIDTH, GAME_SCREEN_HEIGHT, LAYERS, 0, 0);
+
+	CreateMap();
+	CreateText();
+	CreateSound();
+	CreateState();
+
+	TLN_CreateWindow(GAME_NAME ".v" GAME_VER, CWF_S2);
+
+	while (TLN_ProcessWindow())
+	{
+		U64 const start = SDL_GetPerformanceCounter();
+
+		haveFocus = TLN_WindowHaveFocus();
+
+		State_Update();
+
+		TLN_DrawFrame(0);
+
+		U64 const end = SDL_GetPerformanceCounter();
+
+		CalculateFPS(start, end);
+	}
+
+	DestroyMap();
+	DestroyText();
+	DestroySound();
+	DestroyState();
+
+	TLN_DeleteWindow();
+	TLN_Deinit();
+
+	return EXIT_SUCCESS;
+}
+
+/* MAP **********************************************/
+
+static void CreateMap(void)
+{
+	palWhite = TLN_LoadPalette("data/white.act");
+	ASSERT_DBG(palWhite);
+
+	map = TLN_LoadTilemap("data/map.tmx", "map");
+	ASSERT_DBG(map);
+
+	TLN_SetLayerTilemap(MAP, map);
+	TLN_SetLayerPalette(MAP, palWhite);
+}
+
+
+static void DestroyMap(void)
+{
+	ASSERT_DBG(map);
+	ASSERT_DBG(palWhite);
+	TLN_DeleteTilemap(map);
+	TLN_DeletePalette(palWhite);
+}
+
+
+/* TEXT *******************************************/
+
+static void CreateText(void)
+{
+	Text_Create(TEXTS);
+	Text_SetTilesetFile(TEXT_NOTICE, GAME_SCREEN_HEIGHT, GAME_SCREEN_WIDTH, "data/font.tsx");
+	Text_SetTileset(TEXT_PAUSE, GAME_SCREEN_HEIGHT, GAME_SCREEN_WIDTH, Text_GetTileset(TEXT_NOTICE));
+}
+
+
+static inline void DestroyText(void)
+{
+	// funny :)
+	Text_Destroy();
+}
+
+
+static bool DrawTextNotice(void)
+{
+	static U32 i = 0;
+
+	wchar_t c = textNotice[i];
+
+	if (c == L'\0')
+	{
+		return false;
+	}
+
+	if (c == L'\n')
+	{
+		c = ' ';
+		col = 0;
+		++row;
+		Sound_Play(SND_PLAY_EOL);
+	}
+
+	if ((i % 5) == 0)
+	{
+		Sound_Play(SND_PLAY_KEY);
+	}
+
+	TLN_SetLayerPalette(TEXT_NOTICE, palWhite);
+	Text_DrawFormat(TEXT_NOTICE, row, col++ , L"%lc", c);
+
+	++i;
+	return true;
+}
+
+
+static void DrawTextNoticeExit(void)
+{
+	static U32 frame = 0;
+
+	U32 const row_space = 10;
+
+	TLN_SetLayerPalette(TEXT_NOTICE, palWhite);
+
+	if (frame % 6 == 0)
+	{
+		Text_DrawFormat(TEXT_NOTICE, row + row_space, col + 25, L"FPS:%.1f Mem:%d", fps, TLN_GetUsedMemory());
+	}
+
+	if (frame == 8)
+	{
+		Sound_Play(SND_PLAY_KEY);
+		Text_DrawFormat(TEXT_NOTICE, row + row_space, col,  L"\x19 %ls \x19", L"PRESS ESC TO EXIT");
+	}
+
+	if (++frame == 90)
+	{
+		Sound_Play(SND_PLAY_KEY);
+		Text_DrawFormat(TEXT_NOTICE, row + row_space, col,  L"_ %ls _", L"PRESS esc TO EXIT");
+		frame = 0;
+	}
+}
+
+
+static void DrawTextPause(void)
+{
+	TLN_SetLayerPalette(TEXT_PAUSE, palWhite);
+	Text_DrawFormat(TEXT_PAUSE, GAME_SCREEN_HEIGHT / 16,  GAME_SCREEN_WIDTH / 16 - 4,
+					L"\x2A\x2A %ls \x2A\x2A", L"PAUSE");
+}
+
+
+/* SOUND *******************************************/
+
+
+static void CreateSound(void)
+{
+	// The length of the array must be equal to SND_PLAY_MAX entities
+
+	SOUND_MAP const* const ids = (const SOUND_MAP[SND_PLAY_MAX]) {
+						{.file = SND_FILE_KEY, .play = SND_PLAY_KEY     },
+						{.file = SND_FILE_EOL, .play = SND_PLAY_EOL     },
+						{.file = SND_FILE_KEY, .play = SND_PLAY_PAUSE   }, // Hare we recycle the sound file
+					};
+
+	Sound_Create(SND_FILE_MAX, SND_PLAY_MAX);
+
+	Sound_LoadOgg(SND_FILE_KEY, "data/key.ogg");
+	Sound_LoadOgg(SND_FILE_EOL, "data/eol.ogg");
+
+	Sound_SetMap(ids);
+}
+
+
+static void DestroySound(void)
+{
+	// funny again :)
+	Sound_Destroy();
+}
+
+
+/* BOARD STATES ***************************************/
+
+static void BoardEnter(/*optionally 'void* data' for all callback funtions*/)
+{
+	Text_Show(TEXT_NOTICE);
+}
+
+
+static void BoardRun()
+{
+	if (!DrawTextNotice())
+	{
+		DrawTextNoticeExit();
+	}
+
+	if (!haveFocus)
+	{
+		State_SetCurrent(STATE_PAUSE);
+	}
+
+}
+
+
+static void BoardExit()
+{
+	Text_Hide(TEXT_NOTICE);
+}
+
+
+/* PAUSE STATES **************************************/
+
+static void PauseEnter()
+{
+	Text_Show(TEXT_PAUSE);
+}
+
+
+static void PauseRun()
+{
+	DrawTextPause();
+
+	if (haveFocus)
+	{
+		State_SetCurrent(STATE_BOARD);
+	}
+}
+
+
+static void PauseExit()
+{
+	Text_Hide(TEXT_PAUSE);
+}
+
+
+/* STATES **********************************************/
+
+static void CreateState(void)
+{
+	void* data = 0;
+
+	State_Create(STATE_MAX);
+	State_SetCallback(STATE_BOARD, BoardEnter, BoardRun, BoardExit, data);
+	State_SetCallback(STATE_PAUSE, PauseEnter, PauseRun, PauseExit, data);
+	State_SetCurrent(STATE_BOARD);
+}
+
+
+static void DestroyState(void)
+{
+	// again? :)
+	State_Destroy();
+}
+
+
+
+/* FPS **********************************************/
+
+
+static void CalculateFPS(U64 const start, U64 const end)
+{
+	fps = 1.0f / (float)((end - start) / (float)SDL_GetPerformanceFrequency());
+}

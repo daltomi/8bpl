@@ -1,0 +1,16 @@
+# 8bpl
+# DO NOT CHANGE
+
+CFLAGS += -I../../Libraries/Tilengine/include -I/usr/include/SDL2
+LDLIBS += -lTilengine -lSDL2 -lpng -lz
+
+tilengine_release: tilengine
+	-@echo Use libTilengine release
+	$(shell cp -P ../../Libraries/Tilengine/libTilengine.a.release $(GAME_DIR_LIB)/libTilengine.a)
+
+tilengine_debug: tilengine
+	-@echo Use libTilengine debug
+	$(shell cp -P ../../Libraries/Tilengine/libTilengine.a.debug $(GAME_DIR_LIB)/libTilengine.a)
+
+tilengine:
+	$(shell mkdir -p $(GAME_DIR_LIB)/)

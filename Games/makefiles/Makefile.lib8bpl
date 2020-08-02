@@ -1,0 +1,16 @@
+# 8bpl
+# DO NOT CHANGE
+
+CFLAGS += -I../../Libraries/8bpl/include
+LDLIBS += -l8bpl -lm
+
+8bpl_release: 8bpl
+	-@echo Use lib8bpl release
+	$(shell cp -P ../../Libraries/8bpl/lib8bpl.a.release $(GAME_DIR_LIB)/lib8bpl.a)
+
+8bpl_debug: 8bpl
+	-@echo Use lib8bpl debug
+	$(shell cp -P ../../Libraries/8bpl/lib8bpl.a.debug $(GAME_DIR_LIB)/lib8bpl.a)
+
+8bpl:
+	$(shell mkdir -p $(GAME_DIR_LIB)/)

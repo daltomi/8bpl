@@ -1,0 +1,5 @@
+*.o
+export/
+config.h
+libs/
+@GAME_EXE@

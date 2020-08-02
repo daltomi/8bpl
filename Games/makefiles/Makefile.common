@@ -1,0 +1,57 @@
+# 8bpl
+# DO NOT CHANGE
+#
+# Dependencies variables:
+# 		GAME_NAME
+# 		GAME_VER
+# 		GAME_EXE
+#
+# Dependencies targets:
+# 		game_release
+# 		game_debug
+
+
+GAME_DIR_EXPORT		:= export
+GAME_DIR_LIB		:= libs
+GAME_DIR_INCLUDE	:= include
+GAME_DIR_SRC		:= src
+
+CC				?= cc
+CFLAGS			+= -Wall -std=c99 -I$(GAME_DIR_INCLUDE)
+LDFLAGS			+= -L$(GAME_DIR_LIB) -Wl,-rpath $(GAME_DIR_LIB)
+LDLIBS			+= -lm
+
+CFLAGS_RELEASE	:= -O3 -DNDEBUG -Wl,-s
+LDFLAGS_RELEASE := -Wl,-s
+
+CFLAGS_DEBUG	:= -O0 -g -DDEBUG -Wextra
+LDFLAGS_DEBUG	:=
+
+SOURCES			:= $(wildcard $(GAME_DIR_SRC)/*.c)
+OBJS			:= $(SOURCES:.c=.o)
+
+default: release
+
+config:
+	-@sed -e 's/@GAME_NAME@/\"$(GAME_NAME)\"/g' -e 's/@GAME_VER@/\"$(GAME_VER)\"/g' include/config.h.in > include/config.h
+
+release: game_release
+release: CFLAGS+=$(CFLAGS_RELEASE)
+release: LDFLAGS+=$(LDFLAGS_RELEASE)
+release: config $(GAME_NAME)
+
+debug: game_debug
+debug: CFLAGS+=$(CFLAGS_DEBUG)
+debug: LDFLAGS+=$(LDFLAGS_DEBUG)
+debug: config $(GAME_NAME)
+
+
+$(GAME_NAME): $(OBJS)
+	$(CC) $(OBJS) $(LDLIBS) $(LDFLAGS) -o $(GAME_EXE)
+
+.o:
+	$(CC) $(CFLAGS) -c $<
+
+clean:
+	-@rm $(GAME_DIR_SRC)/*.o  $(GAME_NAME) $(GAME_DIR_LIB)/*.a* $(GAME_DIR_INCLUDE)/config.h
+
