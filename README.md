@@ -86,7 +86,7 @@ Example create new project:
 8bpl ignores any project directory in Games/.
 This allows you to create a new repo within your project:
 
-	1) git clone https://github.com/daltomi/8bpl.git
+	1) git clone https://git.gitdisroot.org/daltomi/8bpl.git
 
 	2) cd 8bpl/Games
 
