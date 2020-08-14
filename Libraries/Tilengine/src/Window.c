@@ -309,7 +309,7 @@ static void DeleteWindow (void)
 		SDL_DestroyTexture (backbuffer);
 		backbuffer = NULL;
 	}
-	
+
 	if (renderer)
 	{
 		SDL_DestroyRenderer (renderer);
@@ -326,10 +326,10 @@ static void DeleteWindow (void)
 /*!
  * \brief
  * Sets window title
- * 
+ *
  * \param title
  * Text with the title to set
- * 
+ *
  */
 void TLN_SetWindowTitle (const char* title)
 {
@@ -372,27 +372,27 @@ static int WindowThread (void* data)
 /*!
  * \brief
  * Creates a window for rendering
- * 
+ *
  * \param overlay
  * Optional path of a bmp file to overlay (for emulating RGB mask, scanlines, etc)
- * 
+ *
  * \param flags
  * Mask of the possible creation flags:
  * CWF_FULLSCREEN, CWF_VSYNC, CWF_S1 - CWF_S5 (scaling factor, none = auto max)
- * 
+ *
  * \returns
  * True if window was created or false if error
- * 
+ *
  * Creates a host window with basic user input for tilengine. If fullscreen, it uses the desktop
  * resolution and stretches the output resolution with aspect correction, letterboxing or pillarboxing
  * as needed. If windowed, it creates a centered window that is the maximum possible integer multiply of
  * the resolution configured at TLN_Init()
- * 
+ *
  * \remarks
  * Using this feature is optional, Tilengine is designed to output its rendering to a user-provided surface
  * so it can be used as a backend renderer of an already existing framework. But it is provided for convenience,
  * so it isn't needed to provide external components to run the examples or do engine tests.
- * 
+ *
  * \see
  * TLN_DeleteWindow(), TLN_ProcessWindow(), TLN_GetInput(), TLN_DrawFrame()
  */
@@ -430,25 +430,25 @@ bool TLN_CreateWindow (const char* overlay, int flags)
 /*!
  * \brief
  * Creates a multithreaded window for rendering
- * 
+ *
  * \param overlay
  * Optional path of a bmp file to overlay (for emulating RGB mask, scanlines, etc)
- * 
+ *
  * \param flags
  * Mask of the possible creation flags:
  * CWF_FULLSCREEN, CWF_VSYNC, CWF_S1 - CWF_S5 (scaling factor, none = auto max)
- * 
+ *
  * \returns
  * True if window was created or false if error
- * 
+ *
  * Creates a host window with basic user input for tilengine. If fullscreen, it uses the desktop
  * resolution and stretches the output resolution with aspect correction, letterboxing or pillarboxing
  * as needed. If windowed, it creates a centered window that is the maximum possible integer multiply of
  * the resolution configured at TLN_Init()
- * 
+ *
  * \remarks
  * Unlike TLN_CreateWindow, This window runs in its own thread
- * 
+ *
  * \see
  * TLN_DeleteWindow(), TLN_IsWindowActive(), TLN_GetInput(), TLN_UpdateFrame()
  */
@@ -499,7 +499,7 @@ bool TLN_CreateWindowThread (const char* overlay, int flags)
 /*!
  * \brief
  * Deletes the window previoulsy created with TLN_CreateWindow() or TLN_CreateWindowThread()
- * 
+ *
  * \see
  * TLN_CreateWindow()
  */
@@ -536,7 +536,7 @@ static void ProcessKeycodeInput (TLN_Player player, SDL_Keycode keycode, uint8_t
 	int c;
 	PlayerInput* player_input = &player_inputs[player];
 	TLN_Input input = INPUT_NONE;
-	
+
 	/* search input */
 	for (c=INPUT_UP; c<MAX_INPUTS && input == INPUT_NONE; c++)
 	{
@@ -604,14 +604,14 @@ static void ProcessJoyaxisInput (TLN_Player player, uint8_t axis, int value)
 /*!
  * \brief
  * Does basic window housekeeping in signgle-threaded window
- * 
+ *
  * \returns
  * True if window is active or false if the user has requested to end the application (by pressing Esc key
  * or clicking the close button)
- * 
+ *
  * If a window has been created with TLN_CreateWindow, this function must be called periodically (call it inside
  * the main loop so it gets called regularly). If the window was created with TLN_CreateWindowThread, do not use it
- * 
+ *
  * \see
  * TLN_CreateWindow()
  */
@@ -729,11 +729,11 @@ bool TLN_ProcessWindow (void)
 /*!
  * \brief
  * Checks window state
- * 
+ *
  * \returns
  * True if window is active or false if the user has requested to end the application (by pressing Esc key
  * or clicking the close button)
- * 
+ *
  * \see
  * TLN_CreateWindow(), TLN_CreateWindowThread()
  */
@@ -767,7 +767,7 @@ void TLN_WaitRedraw (void)
 /*!
  * \brief
  * Removed in release 1.12, use TLN_EnableCRTEffect() instead
- * 
+ *
  * \param mode
  * Enable or disable effect
  */
@@ -778,13 +778,13 @@ void TLN_EnableBlur (bool mode)
 /*!
  * \brief
  * Enables CRT simulation post-processing effect to give true retro appeareance
- * 
+ *
  * \param overlay
  * One of the enumerated TLN_Overlay types. Choosing TLN_OVERLAY_CUSTOM selects the image passed when calling TLN_CreateWindow
  *
  * \param overlay_factor
  * Blend factor for overlay image. 0 is full transparent (no effect), 255 is full blending
- 
+
  * \param threshold
  * Middle point of the brightness mapping function
  *
@@ -805,18 +805,18 @@ void TLN_EnableBlur (bool mode)
  *
  * \param glow_factor
  * blend addition factor for brightness overlay. 0 is not addition, 255 is full addition
- * 
+ *
  * This function combines various effects to simulate the output of a CRT monitor with low CPU/GPU usage.
  * A small horizontal blur is added to the frame, simulating the continuous output of a RF modulator where adjacent pixels got mixed.
  * Many graphic designers use this feature where alternating vertical lines are used to create the illusion of more colors or blending.
  * An secondary image is created with overbright pixels. In a real CRT, brighter colors bleed into surrounding area: the pixel size depends
- * somewhat on its brightness. The threshold and v0 to v3 parametes define a two-segment linear mapping between source and destination 
+ * somewhat on its brightness. The threshold and v0 to v3 parametes define a two-segment linear mapping between source and destination
  * brightness for the overlay. Optionally the overlay can be softened more using a slight gaussian blur filter te create a kind of "bloom"
  * effect, and finally it is added on top of the frame with the glow_factor value.
- * 
+ *
  * \see
  * TLN_CreateWindow(),TLN_DisableCRTEffect()
- */ 
+ */
 void TLN_EnableCRTEffect (TLN_Overlay overlay, uint8_t overlay_factor, uint8_t threshold, uint8_t v0, uint8_t v1, uint8_t v2, uint8_t v3, bool blur, uint8_t glow_factor)
 {
 	int c;
@@ -838,7 +838,7 @@ void TLN_EnableCRTEffect (TLN_Overlay overlay, uint8_t overlay_factor, uint8_t t
 	crt_params.v3 = v3;
 	crt_params.blur = blur;
 	crt_params.glow_factor = glow_factor;
-	
+
 	crt_enable = true;
 	crt.gaussian = blur;
 	crt.glow_factor = glow_factor;
@@ -864,10 +864,10 @@ void TLN_EnableCRTEffect (TLN_Overlay overlay, uint8_t overlay_factor, uint8_t t
 /*!
  * \brief
  * Disables the CRT post-processing effect
- * 
+ *
  * \see
  * TLN_EnableCRTEffect()
- */ 
+ */
 void TLN_DisableCRTEffect (void)
 {
 	/* create framebuffer texture with neartest */
@@ -897,7 +897,7 @@ static void EnableCRTEffect (void)
 /*!
  * \brief
  * Returns the state of a given input
- * 
+ *
  * \param input
  * Input to check state. It can be one of the following values:
  *	 * INPUT_UP
@@ -907,16 +907,16 @@ static void EnableCRTEffect (void)
  *	 * INPUT_BUTTON1 - INPUT_BUTTON6,
  *	 * INPUT_START
  *	 * Optionally combine with INPUT_P1 to INPUT_P4 to request input for specific player
- * 
+ *
  * \returns
  * True if that input is pressed or false if not
- * 
+ *
  * If a window has been created with TLN_CreateWindow, it provides basic user input.
  * It simulates a classic arcade setup, with 4 directional buttons (INPUT_UP to INPUT_RIGHT),
- * 6 action buttons (INPUT_BUTTON1 to INPUT_BUTTON6) and a start button (INPUT_START). 
- * By default directional buttons are mapped to keyboard cursors and joystick 1 D-PAD, 
+ * 6 action buttons (INPUT_BUTTON1 to INPUT_BUTTON6) and a start button (INPUT_START).
+ * By default directional buttons are mapped to keyboard cursors and joystick 1 D-PAD,
  * and the first four action buttons are the keys Z,X,C,V and joystick buttons 1 to 4.
- * 
+ *
  * \see
  * TLN_CreateWindow(), TLN_DefineInputKey(), TLN_DefineInputButton()
  */
@@ -1008,7 +1008,7 @@ void TLN_DefineInputButton (TLN_Player player, TLN_Input input, uint8_t joybutto
 /*!
  * \brief
  * Returns the last pressed input button
- * 
+ *
  * \see
  * TLN_GetInput()
  */
@@ -1019,24 +1019,14 @@ int TLN_GetLastInput (void)
 	return retval;
 }
 
-/*!
- * \brief Begins active rendering frame in built-in window
- * \param frame Optional frame number. Set to 0 to autoincrement from previous value
- * \remarks Use this function instead of TLN_BeginFrame() when using the built-in window
- * \see TLN_CreateWindow(), TLN_EndWindowFrame(), TLN_DrawNextScanline()
- */
-void TLN_BeginWindowFrame (int frame)
+
+static void BeginWindowFrame (void)
 {
 	SDL_LockTexture (backbuffer, NULL, (void**)&rt_pixels, &rt_pitch);
 	TLN_SetRenderTarget (rt_pixels, rt_pitch);
-	TLN_BeginFrame (frame);
 }
 
-/*!
- * \brief Finishes rendering the current frame and updates the built-in window
- * \see TLN_CreateWindow(), TLN_BeginWindowFrame(), TLN_DrawNextScanline()
- */
-void TLN_EndWindowFrame (void)
+static void EndWindowFrame (void)
 {
 	/* pixeles con threshold */
 	if (crt_enable && crt.glow_factor != 0)
@@ -1080,24 +1070,24 @@ void TLN_EndWindowFrame (void)
 /*!
  * \brief
  * Draws a frame to the window
- * 
+ *
  * \param frame Optional frame number. Set to 0 to autoincrement from previous value
- * 
+ *
  * Draws a frame to the window
- * 
+ *
  * \remarks
  * If a window has been created with TLN_CreateWindow(), it renders the frame to it. This function is a wrapper to
  * TLN_UpdateFrame which also automatically sets the render target for the window, so when calling this function it is
  * not needed to call TLN_UpdateFrame() too.
- * 
+ *
  * \see
  * TLN_CreateWindow(), TLN_UpdateFrame()
  */
 void TLN_DrawFrame (int frame)
 {
-	TLN_BeginWindowFrame (frame);
-	while (TLN_DrawNextScanline ()){}
-	TLN_EndWindowFrame ();
+	BeginWindowFrame ();
+	TLN_UpdateFrame(frame);
+	EndWindowFrame ();
 }
 
 /*!
@@ -1191,7 +1181,7 @@ static void BuildFullOverlay (SDL_Texture* texture, SDL_Surface* pattern, uint8_
 	SDL_LockTexture (texture, NULL, (void**)&pixels, &pitch);
 	memcpy (pixels, dst_surface->pixels, pitch*dst_surface->h);
 	SDL_UnlockTexture (texture);
-	
+
 	/* release resources */
 	SDL_FreeSurface (dst_surface);
 	SDL_FreeSurface (src_surface);
@@ -1202,7 +1192,7 @@ static void hblur (uint8_t* scan, int width, int height, int pitch)
 {
 	int x,y;
 	uint8_t *pixel;
-	
+
 	width -= 1;
 	for (y=0; y<height; y++)
 	{
