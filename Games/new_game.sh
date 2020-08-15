@@ -18,7 +18,38 @@ if_file_exist_exit() {
     fi
 }
 
+function build_libs()
+{
+	echo "[i] Build/update 8bpl if necesary ..."
+
+	cd ../Libraries/8bpl
+	./build.sh || exit
+	cd -
+
+	echo "[i] Build/update Tilengine if necesary ..."
+
+	cd ../Libraries/Tilengine
+	./build.sh || exit
+	cd -
+}
+
+function help()
+{
+	echo "Usage: $0 <name project>"
+	echo "Usage: $0 --build-libs"
+	echo
+}
+######################################################
+
 if [[ $# -eq 1 ]]; then
+	if [[ "$1" == "--build-libs" ]]; then
+		build_all
+		exit
+	fi
+	if [[ "$1" == "--help" ]]; then
+		help
+		exit
+	fi
     NAME_PROJECT="$1"
 else
     echo "[i] The name of the new project is needed."
@@ -69,18 +100,7 @@ GAME_VER=0.1
 sed -e "s/@GAME_NAME@/$GAME_NAME/g" -e "s/@GAME_VER@/$GAME_VER/g" -e "s/@GAME_EXE@/$GAME_EXE/g" -i "$NAME_PROJECT"/Makefile
 sed -e "s/@GAME_EXE@/$GAME_EXE/g" -i "$NAME_PROJECT"/.gitignore
 
-echo "[i] Build/update 8bpl if necesary ..."
-
-cd ../Libraries/8bpl
-./build.sh || exit
-cd -
-
-echo "[i] Build/update Tilengine if necesary ..."
-
-cd ../Libraries/Tilengine
-./build.sh || exit
-cd -
-
+build_libs
 
 cd "$NAME_PROJECT" || exit
 

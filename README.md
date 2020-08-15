@@ -145,5 +145,13 @@ MyGame/
               |___README
 
 
+
+new_game.sh options:
+---------------
+
+Use --help
+
+
+
 EOF
 ```
