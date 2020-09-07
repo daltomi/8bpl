@@ -10,7 +10,7 @@
 \* ------------------------------------------------------------------------- */
 
 /*
-  8bpl - Copyright (c) daltomi <daltomi@disroot.org>
+  8bpl - Copyright © daltomi <daltomi@disroot.org>
 
   Changelog:
     POW, ASIN, ZERO_INIT_MEM, ASSERT_DBG MESSAGE* SHOW_MESSAGE
