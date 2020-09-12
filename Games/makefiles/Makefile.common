@@ -17,7 +17,14 @@ GAME_DIR_INCLUDE	:= include
 GAME_DIR_SRC		:= src
 
 CC				?= cc
-CFLAGS			+= -Wall -std=c99 -I$(GAME_DIR_INCLUDE)
+CFLAGS			+= -Wall -I$(GAME_DIR_INCLUDE)
+
+ifeq ("$(CC)", "gcc")
+CFLAGS += -std=gnu99
+else
+CFLAGS += -std=c99
+endif
+
 LDFLAGS			+= -L$(GAME_DIR_LIB) -Wl,-rpath $(GAME_DIR_LIB)
 LDLIBS			+= -lm
 

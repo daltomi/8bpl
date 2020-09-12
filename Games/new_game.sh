@@ -43,7 +43,7 @@ function help()
 
 if [[ $# -eq 1 ]]; then
 	if [[ "$1" == "--build-libs" ]]; then
-		build_all
+		build_libs
 		exit
 	fi
 	if [[ "$1" == "--help" ]]; then
