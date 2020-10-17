@@ -23,7 +23,7 @@
 	#else
 		#define TLNAPI __declspec(dllimport)
 	#endif
-	
+
 	#pragma warning(disable : 4200)
 
 	#if _MSC_VER >= 1600	/* Visual C++ 2010? */
@@ -76,14 +76,6 @@ typedef enum
 	FLAG_MASKED		= BITVAL(11),	/*!< sprite won't be drawn inside masked region */
 }
 TLN_TileFlags;
-
-/* fixed point helper */
-typedef int fix_t;
-#define FIXED_BITS	16
-#define float2fix(f)	(fix_t)(f*(1 << FIXED_BITS))
-#define int2fix(i)		((int)(i) << FIXED_BITS)
-#define fix2int(f)		((int)(f) >> FIXED_BITS)
-#define fix2float(f)	(float)(f)/(1 << FIXED_BITS)
 
 /*!
  * layer blend modes. Must be one of these and are mutually exclusive:
@@ -257,9 +249,9 @@ typedef struct
 	int y;						/*!< Screen position y */
 	int w;						/*!< Actual width in screen (after scaling) */
 	int h;						/*!< Actual height in screen (after scaling) */
-	TLN_TileFlags flags;		/*!< flags */
-	TLN_Palette palette;		/*!< assigned palette */	 
-	TLN_Spriteset spriteset;	/*!< assigned spriteset */	
+	uint32_t flags;		        /*!< flags */
+	TLN_Palette palette;		/*!< assigned palette */
+	TLN_Spriteset spriteset;	/*!< assigned spriteset */
 	int index;					/*!< graphic index inside spriteset */
 	bool enabled;				/*!< enabled or not */
 	bool collision;				/*!< per-pixel collision detection enabled or not */
@@ -463,7 +455,7 @@ TLNAPI bool TLN_DeleteSpriteset (TLN_Spriteset Spriteset);
 
 /**
  * \defgroup tileset
- * \brief Tileset resources management for background layers 
+ * \brief Tileset resources management for background layers
 * @{ */
 TLNAPI TLN_Tileset TLN_CreateTileset (int numtiles, int width, int height, TLN_Palette palette, TLN_SequencePack sp, TLN_TileAttributes* attributes);
 TLNAPI TLN_Tileset TLN_CreateImageTileset(int numtiles, TLN_TileImage* images);
@@ -480,7 +472,7 @@ TLNAPI bool TLN_DeleteTileset (TLN_Tileset tileset);
 
 /**
  * \defgroup tilemap
- * \brief Tilemap resources management for background layers 
+ * \brief Tilemap resources management for background layers
 * @{ */
 TLNAPI TLN_Tilemap TLN_CreateTilemap (int rows, int cols, TLN_Tile tiles, uint32_t bgcolor, TLN_Tileset tileset);
 TLNAPI TLN_Tilemap TLN_LoadTilemap (const char* filename, const char* layername);
@@ -576,10 +568,10 @@ TLNAPI int  TLN_GetLayerHeight (int nlayer);
  * \defgroup sprite
  * \brief Sprites management
 * @{ */
-TLNAPI bool TLN_ConfigSprite (int nsprite, TLN_Spriteset spriteset, TLN_TileFlags flags);
+TLNAPI bool TLN_ConfigSprite (int nsprite, TLN_Spriteset spriteset, uint32_t flags);
 TLNAPI bool TLN_SetSpriteSet (int nsprite, TLN_Spriteset spriteset);
-TLNAPI bool TLN_SetSpriteFlags (int nsprite, TLN_TileFlags flags);
-TLNAPI bool TLN_EnableSpriteFlag(int nsprite, TLN_TileFlags flag, bool enable);
+TLNAPI bool TLN_SetSpriteFlags (int nsprite, uint32_t flags);
+TLNAPI bool TLN_EnableSpriteFlag(int nsprite, uint32_t flag, bool enable);
 TLNAPI bool TLN_SetSpritePosition (int nsprite, int x, int y);
 TLNAPI bool TLN_SetSpritePicture (int nsprite, int entry);
 TLNAPI bool TLN_SetSpritePalette (int nsprite, TLN_Palette palette);
