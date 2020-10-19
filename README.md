@@ -1,4 +1,4 @@
-<img src="https://git.disroot.org/daltomi/8bpl/raw/branch/master/screenshot.png"/>
+<img src="https://github.com/daltomi/8bpl/raw/master/screenshot.png"/>
 
 ```
 ___________________________________________________
@@ -9,7 +9,7 @@ ___________________________________________________
 
  Email: daltomi@disroot.org
 
- https://git.disroot.org/daltomi/8bpl
+ https://github.com/daltomi/8bpl
 ___________________________________________________
 
 
@@ -86,7 +86,7 @@ Example create new project:
 8bpl ignores any project directory in Games/.
 This allows you to create a new repo within your project:
 
-	1) git clone https://git.gitdisroot.org/daltomi/8bpl.git
+	1) git clone https://github.com/daltomi/8bpl.git
 
 	2) cd 8bpl/Games
 
