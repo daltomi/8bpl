@@ -85,15 +85,15 @@ do
     fi
 done
 
-echo "[i] Copying templates ..."
+echo "[i] Copying Templates ..."
 
 mkdir -p "$NAME_PROJECT"/{data,include,libs,src}
 
-cp templates/Makefile.template "$NAME_PROJECT"/Makefile
-cp templates/gitignore.template "$NAME_PROJECT"/.gitignore
-cp templates/config.h.in.template "$NAME_PROJECT"/include/config.h.in
-cp templates/main.c.template "$NAME_PROJECT"/src/main.c
-cp -R templates/data/* "$NAME_PROJECT"/data/
+cp Templates/Makefile.template "$NAME_PROJECT"/Makefile
+cp Templates/gitignore.template "$NAME_PROJECT"/.gitignore
+cp Templates/config.h.in.template "$NAME_PROJECT"/include/config.h.in
+cp Templates/main.c.template "$NAME_PROJECT"/src/main.c
+cp -R Templates/data/* "$NAME_PROJECT"/data/
 
 GAME_VER=0.1
 

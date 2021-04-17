@@ -1,8 +1,8 @@
 *
-!/templates
-!/templates/*
-!/templates/data/*
-!/makefiles
-!/makefiles/*
+!/Templates
+!/Templates/*
+!/Templates/data/*
+!/Makefiles
+!/Makefiles/*
 !.gitignore
 !new_game.sh

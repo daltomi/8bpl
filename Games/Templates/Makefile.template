@@ -7,12 +7,12 @@ GAME_VER  := @GAME_VER@
 GAME_EXE  := @GAME_EXE@
 
 # Always.
-include ../makefiles/Makefile.common
+include ../Makefiles/Makefile.common
 
-include ../makefiles/Makefile.lib8bpl
-include ../makefiles/Makefile.libTilengine
-include ../makefiles/Makefile.libstb
-include ../makefiles/Makefile.libcute_headers
+include ../Makefiles/Makefile.lib8bpl
+include ../Makefiles/Makefile.libTilengine
+include ../Makefiles/Makefile.libstb
+include ../Makefiles/Makefile.libcute_headers
 
 game_release: 8bpl_release
 game_release: tilengine_release

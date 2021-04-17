@@ -64,13 +64,13 @@ Organization of the project:
                          |___*.c
     Games/
         |___new_name.sh
-        |___makefiles/
+        |___Makefiles/
         |           |___Makefile.common
         |           |___Makefile.libTilengine
         |           |___Makefile.libcute_headers
         |           |___Makefile.lib8bpl
         |           |___Makefile.libstb
-        |___templates/
+        |___Templates/
                     |___data/
                     |      |___{font,sound,images}
                     |___main.c.template
