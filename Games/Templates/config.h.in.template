@@ -9,6 +9,8 @@
 
 #include "cute_coroutine.h"
 
+#include "flecs.h"
+
 #define GAME_NAME @GAME_NAME@
 #define GAME_VER @GAME_VER@
 

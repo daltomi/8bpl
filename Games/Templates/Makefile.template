@@ -13,14 +13,17 @@ include ../Makefiles/Makefile.lib8bpl
 include ../Makefiles/Makefile.libTilengine
 include ../Makefiles/Makefile.libstb
 include ../Makefiles/Makefile.libcute_headers
+include ../Makefiles/Makefile.libflecs
 
 game_release: 8bpl_release
 game_release: tilengine_release
 game_release: stb
 game_release: cute_headers
+game_release: flecs_release
 
 game_debug: 8bpl_debug
 game_debug: tilengine_debug
 game_debug: stb
 game_debug: cute_headers
+game_debug: flecs_debug
 

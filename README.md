@@ -26,6 +26,8 @@ Language and libraries:
 
 - https://github.com/nothings/stb
 
+- https://github.com/SanderMertens/flecs
+
 
 Organization of the project:
 ----------------------------
@@ -41,6 +43,15 @@ Organization of the project:
             |           |___include/
             |           |         |___Tilengine.h
             |           |___src/
+            |                  |___*.c
+            |
+            |___flecs/
+            |        |___Makefile
+            |        |___build.sh
+            |        |___LICENSE
+            |        |___include/
+            |        |         |___*.h
+            |        |___src/
             |                  |___*.c
             |
             |___cute_headers/
@@ -69,6 +80,7 @@ Organization of the project:
         |           |___Makefile.libTilengine
         |           |___Makefile.libcute_headers
         |           |___Makefile.lib8bpl
+        |           |___Makefile.libflecs
         |           |___Makefile.libstb
         |___Templates/
                     |___data/

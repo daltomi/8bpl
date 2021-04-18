@@ -31,6 +31,12 @@ function build_libs()
 	cd ../Libraries/Tilengine
 	./build.sh || exit
 	cd -
+
+	echo "[i] Build/update flecs if necesary ..."
+
+	cd ../Libraries/flecs
+	./build.sh || exit
+	cd -
 }
 
 function help()

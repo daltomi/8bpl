@@ -5,3 +5,6 @@ Libraries/8bpl/include/config.h
 Libraries/Tilengine/*.a.*
 Libraries/Tilengine/src/*.o
 
+Libraries/flecs/*.a.*
+Libraries/flecs/src/*.o
+
