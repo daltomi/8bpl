@@ -1,13 +1,14 @@
 
 SONAME			= libflecs.a
-DIR_INCLUDE		:= include
-DIR_SRC			:= src
 CC				?= cc
-CFLAGS			:= -Wall -std=c99 -I$(DIR_INCLUDE)
+CFLAGS			:= -Wall -std=c99
+
+FLECS_INC:=include
+CFLAGS += -I$(FLECS_INC) -I$(FLECS_INC)/flecs/ -I$(FLECS_INC)/flecs/modules -I$(FLECS_INC)/flecs/addons
 
 CFLAGS_RELEASE	:= -O3 -DNDEBUG
 CFLAGS_DEBUG	:= -O0 -g -DDEBUG -Wextra
-SOURCES			:= $(wildcard $(DIR_SRC)/*.c)
+SOURCES			:= $(wildcard src/*.c src/modules/*.c src/modules/pipeline/*.c src/modules/system/*.c src/addons/*.c)
 OBJS			:= $(SOURCES:.c=.o)
 
 config:
@@ -29,7 +30,7 @@ $(SONAME): $(OBJS)
 
 clean:
 	-@echo CLEAN
-	-@rm $(DIR_SRC)/*.o
+	-@rm src/*.o src/modules/pipeline/*.o src/modules/system/*.o src/addons/*.o
 
 cleanlib:
 	-@echo CLEAN LIB

@@ -1,7 +1,8 @@
 # 8bpl
 # DO NOT CHANGE
 
-CFLAGS += -I../../Libraries/flecs/include
+FLECS_INC:=../../Libraries/flecs/include
+CFLAGS += -I$(FLECS_INC) -I$(FLECS_INC)/flecs/ -I$(FLECS_INC)/flecs/modules -I$(FLECS_INC)/flecs/addons
 LDLIBS += -lflecs
 
 flecs_release: flecs

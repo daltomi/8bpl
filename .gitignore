@@ -7,4 +7,5 @@ Libraries/Tilengine/src/*.o
 
 Libraries/flecs/*.a.*
 Libraries/flecs/src/*.o
+Libraries/flecs/src/modules/*.o
 
