@@ -7,14 +7,8 @@
 
 /* Global type variables */
 ECS_TYPE_DECL(EcsComponentLifecycle);
-ECS_TYPE_DECL(EcsTrigger);
 ECS_TYPE_DECL(EcsSystem);
 ECS_TYPE_DECL(EcsTickSource);
-ECS_TYPE_DECL(EcsSignatureExpr);
-ECS_TYPE_DECL(EcsSignature);
-ECS_TYPE_DECL(EcsQuery);
-ECS_TYPE_DECL(EcsIterAction);
-ECS_TYPE_DECL(EcsContext);
 
 static
 ecs_on_demand_in_t* get_in_component(
@@ -40,13 +34,13 @@ void activate_in_columns(
     ecs_map_t *component_map,
     bool activate)
 {
-    ecs_sig_column_t *columns = ecs_vector_first(query->sig.columns, ecs_sig_column_t);
-    int32_t i, count = ecs_vector_count(query->sig.columns);
+    ecs_term_t *terms = query->filter.terms;
+    int32_t i, count = query->filter.term_count;
 
     for (i = 0; i < count; i ++) {
-        if (columns[i].inout_kind == EcsIn) {
+        if (terms[i].inout == EcsIn) {
             ecs_on_demand_in_t *in = get_in_component(
-                component_map, columns[i].is.component);
+                component_map, terms[i].id);
             ecs_assert(in != NULL, ECS_INTERNAL_ERROR, NULL);
 
             in->count += activate ? 1 : -1;
@@ -101,11 +95,11 @@ void register_out_columns(
     EcsSystem *system_data)
 {
     ecs_query_t *query = system_data->query;
-    ecs_sig_column_t *columns = ecs_vector_first(query->sig.columns, ecs_sig_column_t);
-    int32_t i, out_count = 0, count = ecs_vector_count(query->sig.columns);
+    ecs_term_t *terms = query->filter.terms;
+    int32_t out_count = 0, i, count = query->filter.term_count;
 
     for (i = 0; i < count; i ++) {
-        if (columns[i].inout_kind == EcsOut) {
+        if (terms[i].inout == EcsOut) {
             if (!system_data->on_demand) {
                 system_data->on_demand = ecs_os_malloc(sizeof(ecs_on_demand_out_t));
                 ecs_assert(system_data->on_demand != NULL, ECS_OUT_OF_MEMORY, NULL);
@@ -117,26 +111,26 @@ void register_out_columns(
             /* If column operator is NOT and the inout kind is [out], the system
              * explicitly states that it will create the component (it is not
              * there, yet it is an out column). In this case it doesn't make
-             * sense to wait until [in] columns get activated (matched with
+             * sense to wait until [in] terms get activated (matched with
              * entities) since the component is not there yet. Therefore add it
              * to the on_enable_components list, so this system will be enabled
              * when a [in] column is enabled, rather than activated */
             ecs_map_t *component_map;
-            if (columns[i].oper_kind == EcsOperNot) {
+            if (terms[i].oper == EcsNot) {
                 component_map = world->on_enable_components;
             } else {
                 component_map = world->on_activate_components;
             }
 
             register_out_column(
-                component_map, columns[i].is.component, 
+                component_map, terms[i].id, 
                 system_data->on_demand);
 
             out_count ++;
         }
     }
 
-    /* If there are no out columns in the on-demand system, the system will
+    /* If there are no out terms in the on-demand system, the system will
      * never be enabled */
     ecs_assert(out_count != 0, ECS_NO_OUT_COLUMNS, ecs_get_name(world, system));
 }
@@ -164,6 +158,13 @@ void ecs_system_activate(
     ecs_assert(!world->is_readonly, ECS_INTERNAL_ERROR, NULL);
 
     if (activate) {
+        /* If activating system, ensure that it doesn't have the Inactive tag.
+         * Systems are implicitly activated so they are kept out of the main
+         * loop as long as they aren't used. They are not implicitly deactivated
+         * to prevent overhead in case of oscillating app behavior. 
+         * After activation, systems that aren't matched with anything can be
+         * deactivated again by explicitly calling ecs_deactivate_systems.
+         */
         ecs_remove_id(world, system, EcsInactive);
     }
 
@@ -172,6 +173,18 @@ void ecs_system_activate(
     }
     if (!system_data || !system_data->query) {
         return;
+    }
+
+    if (!activate) {
+        if (ecs_has_id(world, system, EcsDisabled) || 
+            ecs_has_id(world, system, EcsDisabledIntern)) 
+        {
+            if (!ecs_vector_count(system_data->query->tables)) {
+                /* If deactivating a disabled system that isn't matched with
+                 * any active tables, there is nothing to deactivate. */
+                return;
+            }
+        }            
     }
 
     /* If system contains in columns, signal that they are now in use */
@@ -221,87 +234,6 @@ void ecs_enable_system(
         enabled ? EcsSystemEnabled : EcsSystemDisabled);
 }
 
-static
-void ecs_init_system(
-    ecs_world_t *world,
-    ecs_entity_t system,
-    ecs_iter_action_t action,
-    ecs_query_t *query,
-    void *ctx)
-{
-    ecs_assert(!world->is_readonly, ECS_INVALID_WHILE_ITERATING, NULL);
-
-    /* Add & initialize the EcsSystem component */
-    bool is_added = false;
-    EcsSystem *sptr = ecs_get_mut(world, system, EcsSystem, &is_added);
-    ecs_assert(sptr != NULL, ECS_INTERNAL_ERROR, NULL);
-
-    if (!is_added) {
-        ecs_assert(sptr->query == query, ECS_INVALID_PARAMETER, NULL);
-    } else {
-        memset(sptr, 0, sizeof(EcsSystem));
-        sptr->query = query;
-        sptr->entity = system;
-        sptr->tick_source = 0;
-        sptr->time_spent = 0;
-    }
-
-    /* Sanity check to make sure creating the query didn't add any additional
-     * tags or components to the system */
-    sptr->action = action;
-    sptr->ctx = ctx;
-
-    /* Only run this code when the system is created for the first time */
-    if (is_added) {
-        /* If tables have been matched with this system it is active, and we
-         * should activate the in-columns, if any. This will ensure that any
-         * OnDemand systems get enabled. */
-        if (ecs_vector_count(query->tables)) {
-            ecs_system_activate(world, system, true, sptr);
-        } else {
-            /* If system isn't matched with any tables, mark it as inactive. This
-             * causes it to be ignored by the main loop. When the system matches
-             * with a table it will be activated. */
-            ecs_add_id(world, system, EcsInactive);
-        }
-
-        /* If system is enabled, trigger enable components */
-        activate_in_columns(world, query, world->on_enable_components, true);
-
-        /* Check if all non-table column constraints are met. If not, disable
-         * system (system will be enabled once constraints are met) */
-        if (!ecs_sig_check_constraints(world, &query->sig)) {
-            ecs_add_id(world, system, EcsDisabledIntern);
-        }
-
-        /* If the query has a OnDemand system tag, register its [out] columns */
-        if (ecs_has_id(world, system, EcsOnDemand)) {
-            register_out_columns(world, system, sptr);
-            ecs_assert(sptr->on_demand != NULL, ECS_INTERNAL_ERROR, NULL);
-
-            /* If there are no systems currently interested in any of the [out]
-             * columns of the on demand system, disable it */
-            if (!sptr->on_demand->count) {
-                ecs_add_id(world, system, EcsDisabledIntern);
-            }        
-        }
-
-        /* Check if system has out columns */
-        int32_t i, count = ecs_vector_count(query->sig.columns);
-        ecs_sig_column_t *columns = ecs_vector_first(
-                query->sig.columns, ecs_sig_column_t);
-        
-        for (i = 0; i < count; i ++) {
-            if (columns[i].inout_kind != EcsIn) {
-                break;
-            }
-        }
-    }
-
-    ecs_trace_1("system #[green]%s#[reset] created with #[red]%s", 
-        ecs_get_name(world, system), query->sig.expr);
-}
-
 /* -- Public API -- */
 
 void ecs_enable(
@@ -326,33 +258,6 @@ void ecs_enable(
     }
 }
 
-void ecs_set_system_status_action(
-    ecs_world_t *world,
-    ecs_entity_t system,
-    ecs_system_status_action_t action,
-    const void *ctx)
-{
-    EcsSystem *system_data = ecs_get_mut(world, system, EcsSystem, NULL);
-    ecs_assert(system_data != NULL, ECS_INVALID_PARAMETER, NULL);
-
-    system_data->status_action = action;
-    system_data->status_ctx = (void*)ctx;
-
-    if (!ecs_has_id(world, system, EcsDisabled)) {
-        /* If system is already enabled, generate enable status. The API 
-         * should guarantee that it exactly matches enable-disable 
-         * notifications and activate-deactivate notifications. */
-        invoke_status_action(world, system, system_data, EcsSystemEnabled);
-
-        /* If column system has active (non-empty) tables, also generate the
-         * activate status. */
-        if (ecs_vector_count(system_data->query->tables)) {
-            invoke_status_action(
-                world, system, system_data, EcsSystemActivated);
-        }
-    }
-}
-
 ecs_entity_t ecs_run_intern(
     ecs_world_t *world,
     ecs_stage_t *stage,
@@ -366,12 +271,13 @@ ecs_entity_t ecs_run_intern(
     const ecs_filter_t *filter,
     void *param) 
 {
+    FLECS_FLOAT time_elapsed = delta_time;
+    ecs_entity_t tick_source = system_data->tick_source;
+
+    /* Support legacy behavior */
     if (!param) {
         param = system_data->ctx;
     }
-
-    FLECS_FLOAT time_elapsed = delta_time;
-    ecs_entity_t tick_source = system_data->tick_source;
 
     if (tick_source) {
         const EcsTickSource *tick = ecs_get(
@@ -410,13 +316,9 @@ ecs_entity_t ecs_run_intern(
     it.delta_system_time = time_elapsed;
     it.world_time = world->stats.world_time_total;
     it.frame_offset = offset;
-    
-    /* Set param if provided, otherwise use system context */
-    if (param) {
-        it.param = param;
-    } else {
-        it.param = system_data->ctx;
-    }
+    it.param = param;
+    it.ctx = system_data->ctx;
+    it.binding_ctx = system_data->binding_ctx;
 
     ecs_iter_action_t action = system_data->action;
 
@@ -495,7 +397,7 @@ ecs_entity_t ecs_run(
 void ecs_run_monitor(
     ecs_world_t *world,
     ecs_matched_query_t *monitor,
-    ecs_entities_t *components,
+    ecs_ids_t *components,
     int32_t row,
     int32_t count,
     ecs_entity_t *entities)
@@ -517,7 +419,8 @@ void ecs_run_monitor(
 
     it.world = world;
     it.triggered_by = components;
-    it.param = system_data->ctx;
+    it.ctx = system_data->ctx;
+    it.binding_ctx = system_data->binding_ctx;
 
     if (entities) {
         it.entities = entities;
@@ -527,7 +430,7 @@ void ecs_run_monitor(
     system_data->action(&it);
 }
 
-ecs_query_t* ecs_get_query(
+ecs_query_t* ecs_get_system_query(
     const ecs_world_t *world,
     ecs_entity_t system)
 {
@@ -535,8 +438,37 @@ ecs_query_t* ecs_get_query(
     if (q) {
         return q->query;
     } else {
-        return NULL;
+        const EcsSystem *s = ecs_get(world, system, EcsSystem);
+        if (s) {
+            return s->query;
+        } else {
+            return NULL;
+        }
     }
+}
+
+void* ecs_get_system_ctx(
+    const ecs_world_t *world,
+    ecs_entity_t system)
+{
+    const EcsSystem *s = ecs_get(world, system, EcsSystem);
+    if (s) {
+        return s->ctx;
+    } else {
+        return NULL;
+    }   
+}
+
+void* ecs_get_system_binding_ctx(
+    const ecs_world_t *world,
+    ecs_entity_t system)
+{
+    const EcsSystem *s = ecs_get(world, system, EcsSystem);
+    if (s) {
+        return s->binding_ctx;
+    } else {
+        return NULL;
+    }   
 }
 
 /* Generic constructor to initialize a component to 0 */
@@ -576,11 +508,11 @@ void ecs_colsystem_dtor(
 
     int i;
     for (i = 0; i < count; i ++) {
-        EcsSystem *cur = &system_data[i];
+        EcsSystem *system = &system_data[i];
         ecs_entity_t e = entities[i];
 
         /* Invoke Deactivated action for active systems */
-        if (cur->query && ecs_vector_count(cur->query->tables)) {
+        if (system->query && ecs_vector_count(system->query->tables)) {
             invoke_status_action(world, e, ptr, EcsSystemDeactivated);
         }
 
@@ -589,93 +521,22 @@ void ecs_colsystem_dtor(
             !ecs_has_id(world, e, EcsDisabledIntern)) 
         {
             invoke_status_action(world, e, ptr, EcsSystemDisabled);
-        }           
-
-        ecs_os_free(cur->on_demand);
-    }
-}
-
-/* Register a trigger for a component */
-static
-EcsTrigger* trigger_find_or_create(
-    ecs_vector_t **triggers,
-    ecs_entity_t entity)
-{
-    ecs_vector_each(*triggers, EcsTrigger, trigger, {
-        if (trigger->self == entity) {
-            return trigger;
         }
-    });
 
-    EcsTrigger *result = ecs_vector_add(triggers, EcsTrigger);
-    return result;
-}
+        ecs_os_free(system->on_demand);
 
-static
-void trigger_set(
-    ecs_world_t *world,
-    const ecs_entity_t *entities,
-    EcsTrigger *ct,
-    int32_t count)
-{
-    EcsTrigger *el = NULL;
-
-    int i;
-    for (i = 0; i < count; i ++) {
-        ecs_entity_t c = ct[i].component;
-        ecs_c_info_t *c_info = ecs_get_or_create_c_info(world, c);
-
-        switch(ct[i].kind) {
-        case EcsOnAdd:
-            el = trigger_find_or_create(&c_info->on_add, entities[i]);
-            break;
-        case EcsOnRemove:
-            el = trigger_find_or_create(&c_info->on_remove, entities[i]);
-            break;
-        default:
-            ecs_abort(ECS_INVALID_PARAMETER, NULL);
-            break;
+        if (system->ctx_free) {
+            system->ctx_free(system->ctx);
         }
-        
-        ecs_assert(el != NULL, ECS_INTERNAL_ERROR, NULL);
 
-        *el = ct[i];
-        el->self = entities[i];
+        if (system->status_ctx_free) {
+            system->status_ctx_free(system->status_ctx);
+        }
 
-        ecs_notify_tables(world, &(ecs_table_event_t) {
-            .kind = EcsTableComponentInfo,
-            .component = c
-        });        
-
-        ecs_trace_1("trigger #[green]%s#[normal] created for component #[red]%s",
-            ct[i].kind == EcsOnAdd
-                ? "OnAdd"
-                : "OnRemove", ecs_get_name(world, c));
+        if (system->binding_ctx_free) {
+            system->binding_ctx_free(system->binding_ctx);
+        }                
     }
-}
-
-static
-void OnSetTrigger(
-    ecs_iter_t *it)
-{
-    EcsTrigger *ct = ecs_term(it, EcsTrigger, 1);
-    
-    trigger_set(it->world, it->entities, ct, it->count);
-}
-
-static
-void OnSetTriggerCtx(
-    ecs_iter_t *it)
-{
-    EcsTrigger *ct = ecs_term(it, EcsTrigger, 1);
-    EcsContext *ctx = ecs_term(it, EcsContext, 2);
-
-    int32_t i;
-    for (i = 0; i < it->count; i ++) {
-        ct[i].ctx = (void*)ctx[i].ctx;
-    }
-
-    trigger_set(it->world, it->entities, ct, it->count);    
 }
 
 /* System that registers component lifecycle callbacks */
@@ -721,185 +582,162 @@ void EnableSystem(
     }
 }
 
-/* Parse a signature expression into the ecs_sig_t data structure */
-static
-void CreateSignature(
-    ecs_iter_t *it) 
-{
-    ecs_world_t *world = it->world;
-    ecs_entity_t *entities = it->entities;
-
-    EcsSignatureExpr *signature = ecs_term(it, EcsSignatureExpr, 1);
-    
-    int32_t i;
-    for (i = 0; i < it->count; i ++) {
-        ecs_entity_t e = entities[i];
-        const char *name = ecs_get_name(world, e);
-
-        /* Parse the signature and add the result to the entity */
-        EcsSignature sig = {0};
-        ecs_sig_init(world, name, signature[0].expr, &sig.signature);
-        ecs_set_ptr(world, e, EcsSignature, &sig);
-
-        /* If sig has FromSystem columns, add components to the entity */
-        ecs_vector_each(sig.signature.columns, ecs_sig_column_t, column, {
-            if (column->from_kind == EcsFromSystem) {
-                ecs_add_id(world, e, column->is.component);
-            }
-        });    
-    }
-}
-
-/* Create a query from a signature */
-static
-void CreateQuery(
-    ecs_iter_t *it) 
-{
-    ecs_world_t *world = it->world;
-    ecs_entity_t *entities = it->entities;
-
-    EcsSignature *signature = ecs_term(it, EcsSignature, 1);
-    
-    int32_t i;
-    for (i = 0; i < it->count; i ++) {
-        ecs_entity_t e = entities[i];
-
-        if (!ecs_has(world, e, EcsQuery)) {
-            EcsQuery query = {0};
-            query.query = ecs_query_new_w_sig(world, e, &signature[i].signature);
-            ecs_set_ptr(world, e, EcsQuery, &query);
-        }
-    }
-}
-
-/* Create a system from a query and an action */
-static
-void CreateSystem(
-    ecs_iter_t *it)
-{
-    ecs_world_t *world = it->world;
-    ecs_entity_t *entities = it->entities;
-
-    EcsQuery *query = ecs_term(it, EcsQuery, 1);
-    EcsIterAction *action = ecs_term(it, EcsIterAction, 2);
-    EcsContext *ctx = ecs_term(it, EcsContext, 3);
-    
-    int32_t i;
-    for (i = 0; i < it->count; i ++) {
-        ecs_entity_t e = entities[i];
-        void *ctx_ptr = NULL;
-        if (ctx) {
-            ctx_ptr = (void*)ctx[i].ctx;
-        }
-
-        ecs_init_system(world, e, action[i].action, query[i].query, ctx_ptr);
-    }
-}
-
-static
-void bootstrap_set_system(
+ecs_entity_t ecs_system_init(
     ecs_world_t *world,
-    const char *name,
-    const char *expr,
-    ecs_iter_action_t action)
-{
-    ecs_sig_t sig = {0};
-    ecs_entity_t sys = ecs_set(world, 0, EcsName, {.value = name});
-    ecs_add_id(world, sys, EcsOnSet);
-    ecs_sig_init(world, name, expr, &sig);
-    ecs_query_t *query = ecs_query_new_w_sig(world, sys, &sig);
-    ecs_init_system(world, sys, action, query, NULL);
-}
-
-ecs_entity_t ecs_new_system(
-    ecs_world_t *world,
-    ecs_entity_t e,
-    const char *name,
-    ecs_entity_t tag,
-    const char *signature,
-    ecs_iter_action_t action)
+    const ecs_system_desc_t *desc)
 {
     ecs_assert(world->magic == ECS_WORLD_MAGIC, ECS_INVALID_FROM_WORKER, NULL);
     ecs_assert(!world->is_readonly, ECS_INVALID_WHILE_ITERATING, NULL);
 
-    ecs_entity_t result = ecs_lookup_w_id(world, e, name);
+    ecs_entity_t existing = desc->entity.entity;
+    ecs_entity_t result = ecs_entity_init(world, &desc->entity);
     if (!result) {
-        result = ecs_new_entity(world, 0, name, NULL);
-    }
-
-    if (tag) {
-        ecs_add_id(world, result, tag);
+        return 0;
     }
 
     bool added = false;
-    EcsSignatureExpr *expr = ecs_get_mut(world, result, EcsSignatureExpr, &added);
+    EcsSystem *system = ecs_get_mut(world, result, EcsSystem, &added);
     if (added) {
-        expr->expr = signature;
+        ecs_assert(desc->callback != NULL, ECS_INVALID_PARAMETER, NULL);
+
+        memset(system, 0, sizeof(EcsSystem));
+
+        ecs_query_desc_t query_desc = desc->query;
+        query_desc.filter.name = desc->entity.name;
+        query_desc.system = result;
+
+        ecs_query_t *query = ecs_query_init(world, &query_desc);
+        if (!query) {
+            ecs_delete(world, result);
+            return 0;
+        }
+
+        /* Re-obtain pointer, as query may have added components */
+        system = ecs_get_mut(world, result, EcsSystem, &added);
+        ecs_assert(added == false, ECS_INTERNAL_ERROR, NULL);
+
+        /* Prevent the system from moving while we're initializing */
+        ecs_defer_begin(world);
+
+        system->entity = result;
+        system->query = query;
+
+        system->action = desc->callback;
+        system->status_action = desc->status_callback;
+
+        system->ctx = desc->ctx;
+        system->status_ctx = desc->status_ctx;
+        system->binding_ctx = desc->binding_ctx;
+
+        system->ctx_free = desc->ctx_free;
+        system->status_ctx_free = desc->status_ctx_free;
+        system->binding_ctx_free = desc->binding_ctx_free;
+
+        system->tick_source = desc->tick_source;
+
+        /* If tables have been matched with this system it is active, and we
+         * should activate the in terms, if any. This will ensure that any
+         * OnDemand systems get enabled. */
+        if (ecs_vector_count(query->tables)) {
+            ecs_system_activate(world, result, true, system);
+        } else {
+            /* If system isn't matched with any tables, mark it as inactive. This
+             * causes it to be ignored by the main loop. When the system matches
+             * with a table it will be activated. */
+            ecs_add_id(world, result, EcsInactive);
+        }
+
+        /* If system is enabled, trigger enable components */
+        activate_in_columns(world, query, world->on_enable_components, true);
+
+        /* If the query has a OnDemand system tag, register its [out] terms */
+        if (ecs_has_id(world, result, EcsOnDemand)) {
+            register_out_columns(world, result, system);
+            ecs_assert(system->on_demand != NULL, ECS_INTERNAL_ERROR, NULL);
+
+            /* If there are no systems currently interested in any of the [out]
+             * terms of the on demand system, disable it */
+            if (!system->on_demand->count) {
+                ecs_add_id(world, result, EcsDisabledIntern);
+            }        
+        }
+
+        if (!ecs_has_id(world, result, EcsDisabled)) {
+            /* If system is already enabled, generate enable status. The API 
+            * should guarantee that it exactly matches enable-disable 
+            * notifications and activate-deactivate notifications. */
+            invoke_status_action(world, result, system, EcsSystemEnabled);
+
+            /* If column system has active (non-empty) tables, also generate the
+            * activate status. */
+            if (ecs_vector_count(system->query->tables)) {
+                invoke_status_action(world, result, system, EcsSystemActivated);
+            }
+        }
+
+        if (desc->interval != 0 || desc->rate != 0 || desc->tick_source != 0) {
+#ifdef FLECS_TIMER
+            if (desc->interval != 0) {
+                ecs_set_interval(world, result, desc->interval);
+            }
+
+            if (desc->rate) {
+                ecs_set_rate(world, result, desc->rate, desc->tick_source);
+            } else if (desc->tick_source) {
+                ecs_set_tick_source(world, result, desc->tick_source);
+            }
+#else
+            ecs_abort(ECS_UNSUPPORTED, "timer module not available");
+#endif
+        }
+
+        ecs_modified(world, result, EcsSystem);
+
+        ecs_trace_1("system #[green]%s#[reset] created with #[red]%s", 
+            ecs_get_name(world, result), query->filter.expr);
+
+        ecs_defer_end(world);            
     } else {
-        if (!expr->expr || !signature) {
-            if (expr->expr != signature) {
-                if (expr->expr && !strcmp(expr->expr, "0")) {
-                    /* Ok */
-                } else if (signature && !strcmp(signature, "0")) {
-                    /* Ok */
-                } else {
-                    ecs_abort(ECS_ALREADY_DEFINED, NULL);
+        const char *expr_desc = desc->query.filter.expr;
+        const char *expr_sys = system->query->filter.expr;
+
+        /* Only check expression if it's set */
+        if (expr_desc) {
+            if (expr_sys && !strcmp(expr_sys, "0")) expr_sys = NULL;
+            if (expr_desc && !strcmp(expr_desc, "0")) expr_desc = NULL;
+
+            if (expr_sys && expr_desc) {
+                if (strcmp(expr_sys, expr_desc)) {
+                    ecs_abort(ECS_ALREADY_DEFINED, desc->entity.name);
+                }
+            } else {
+                if (expr_sys != expr_desc) {
+                    ecs_abort(ECS_ALREADY_DEFINED, desc->entity.name);
                 }
             }
-        } else {
-            if (strcmp(expr->expr, signature)) {
-                ecs_abort(ECS_ALREADY_DEFINED, name);
+
+        /* If expr_desc is not set, and this is an existing system, don't throw
+         * an error because we could be updating existing parameters of the
+         * system such as the context or system callback. However, if no
+         * entity handle was provided, we have to assume that the application is
+         * trying to redeclare the system. */
+        } else if (!existing) {
+            if (expr_sys) {
+                ecs_abort(ECS_ALREADY_DEFINED, desc->entity.name);
             }
         }
-    }
 
-    ecs_modified(world, result, EcsSignatureExpr);
-
-    ecs_set(world, result, EcsIterAction, {action});
-
-    return result;
-}
-
-ecs_entity_t ecs_new_trigger(
-    ecs_world_t *world,
-    ecs_entity_t e,
-    const char *name,
-    ecs_entity_t kind,
-    const char *component_name,
-    ecs_iter_action_t action)
-{
-    ecs_assert(world->magic == ECS_WORLD_MAGIC, ECS_INVALID_PARAMETER, NULL);
-
-    ecs_entity_t component = ecs_lookup_fullpath(world, component_name);
-    ecs_assert(component != 0, ECS_INVALID_COMPONENT_ID, component_name);
-
-    ecs_entity_t result = ecs_lookup_w_id(world, e, name);
-    if (!result) {
-        result = ecs_new_entity(world, 0, name, NULL);
-    }
-
-    bool added = false;
-    EcsTrigger *trigger = ecs_get_mut(world, result, EcsTrigger, &added);
-    if (added) {
-        trigger->kind = kind;
-        trigger->action = action;
-        trigger->component = component;
-        trigger->ctx = NULL;
-    } else {
-        if (trigger->kind != kind) {
-            ecs_abort(ECS_ALREADY_DEFINED, name);
+        /* Override the existing callback or context */
+        if (desc->callback) {
+            system->action = desc->callback;
         }
-
-        if (trigger->component != component) {
-            ecs_abort(ECS_ALREADY_DEFINED, name);
+        if (desc->ctx) {
+            system->ctx = desc->ctx;
         }
-
-        if (trigger->action != action) {
-            trigger->action = action;
+        if (desc->binding_ctx) {
+            system->binding_ctx = desc->binding_ctx;
         }
     }
-    
-    ecs_modified(world, result, EcsTrigger);
 
     return result;
 }
@@ -912,14 +750,8 @@ void FlecsSystemImport(
     ecs_set_name_prefix(world, "Ecs");
 
     ecs_bootstrap_component(world, EcsComponentLifecycle);
-    ecs_bootstrap_component(world, EcsTrigger);
     ecs_bootstrap_component(world, EcsSystem);
     ecs_bootstrap_component(world, EcsTickSource);
-    ecs_bootstrap_component(world, EcsSignatureExpr);
-    ecs_bootstrap_component(world, EcsSignature);
-    ecs_bootstrap_component(world, EcsQuery);
-    ecs_bootstrap_component(world, EcsIterAction);
-    ecs_bootstrap_component(world, EcsContext);
 
     ecs_bootstrap_tag(world, EcsOnAdd);
     ecs_bootstrap_tag(world, EcsOnRemove);
@@ -936,14 +768,8 @@ void FlecsSystemImport(
     ecs_set_scope(world, old_scope);
 
     ECS_TYPE_IMPL(EcsComponentLifecycle);
-    ECS_TYPE_IMPL(EcsTrigger);
     ECS_TYPE_IMPL(EcsSystem);
     ECS_TYPE_IMPL(EcsTickSource);
-    ECS_TYPE_IMPL(EcsSignatureExpr);
-    ECS_TYPE_IMPL(EcsSignature);
-    ECS_TYPE_IMPL(EcsQuery);
-    ECS_TYPE_IMPL(EcsIterAction);
-    ECS_TYPE_IMPL(EcsContext);
 
     /* Bootstrap ctor and dtor for EcsSystem */
     ecs_set_component_actions_w_id(world, ecs_id(EcsSystem), 
@@ -952,25 +778,16 @@ void FlecsSystemImport(
             .dtor = ecs_colsystem_dtor
         });
 
-    /* Create systems necessary to create systems */
-    bootstrap_set_system(world, "CreateSignature", "SignatureExpr", CreateSignature);
-    bootstrap_set_system(world, "CreateQuery", "Signature, IterAction", CreateQuery);
-    bootstrap_set_system(world, "CreateSystem", "Query, IterAction, ?Context", CreateSystem);
-
-    /* From here we can create systems */
-
     /* Register OnSet system for EcsComponentLifecycle */
-    ECS_SYSTEM(world, OnSetComponentLifecycle, EcsOnSet, ComponentLifecycle, SYSTEM:Hidden);
-
-    /* Register OnSet system for triggers */
-    ECS_SYSTEM(world, OnSetTrigger, EcsOnSet, Trigger, SYSTEM:Hidden);
-
-    /* System that sets ctx for a trigger */
-    ECS_SYSTEM(world, OnSetTriggerCtx, EcsOnSet, Trigger, Context, SYSTEM:Hidden);
+    ECS_SYSTEM(world, OnSetComponentLifecycle, EcsOnSet, 
+        ComponentLifecycle, SYSTEM:Hidden);
 
     /* Monitors that trigger when a system is enabled or disabled */
-    ECS_SYSTEM(world, DisableSystem, EcsMonitor, System, Disabled || DisabledIntern, SYSTEM:Hidden);
-    ECS_SYSTEM(world, EnableSystem, EcsMonitor, System, !Disabled, !DisabledIntern, SYSTEM:Hidden);
+    ECS_SYSTEM(world, DisableSystem, EcsMonitor, 
+        System, Disabled || DisabledIntern, SYSTEM:Hidden);
+
+    ECS_SYSTEM(world, EnableSystem, EcsMonitor, 
+        System, !Disabled, !DisabledIntern, SYSTEM:Hidden);
 }
 
 #endif

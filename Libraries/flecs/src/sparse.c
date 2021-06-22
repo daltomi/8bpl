@@ -1,4 +1,4 @@
-#include "flecs.h"
+#include "private_api.h"
 
 /** The number of elements in a single chunk */
 #define CHUNK_COUNT (4096)
@@ -571,11 +571,14 @@ void ecs_sparse_set_generation(
 }
 
 bool ecs_sparse_exists(
-    ecs_sparse_t *sparse,
+    const ecs_sparse_t *sparse,
     uint64_t index)
 {
     ecs_assert(sparse != NULL, ECS_INVALID_PARAMETER, NULL);
-    chunk_t *chunk = get_or_create_chunk(sparse, CHUNK(index));
+    chunk_t *chunk = get_chunk(sparse, CHUNK(index));
+    if (!chunk) {
+        return false;
+    }
     
     strip_generation(&index);
     int32_t offset = OFFSET(index);

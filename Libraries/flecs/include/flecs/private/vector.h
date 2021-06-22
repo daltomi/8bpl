@@ -47,7 +47,11 @@ struct ecs_vector_t {
 };
 
 /* Compute the header size of the vector from size & alignment */
-#define ECS_VECTOR_U(size, alignment) size, ECS_MAX(ECS_SIZEOF(ecs_vector_t), alignment)
+#ifndef __cplusplus
+#define ECS_VECTOR_U(size, alignment) size, (int16_t)ECS_MAX(ECS_SIZEOF(ecs_vector_t), alignment)
+#else
+#define ECS_VECTOR_U(size, alignment) size, static_cast<int16_t>(ECS_MAX(ECS_SIZEOF(ecs_vector_t), alignment))
+#endif
 
 /* Compute the header size of the vector from a provided compile-time type */
 #define ECS_VECTOR_T(T) ECS_VECTOR_U(ECS_SIZEOF(T), ECS_ALIGNOF(T))
@@ -254,17 +258,17 @@ int32_t _ecs_vector_move_index(
 
 /** Remove element at specified index. Moves the last value to the index. */
 FLECS_API
-int32_t _ecs_vector_remove_index(
+int32_t _ecs_vector_remove(
     ecs_vector_t *vector,
     ecs_size_t elem_size,
     int16_t offset,
     int32_t index);
 
-#define ecs_vector_remove_index(vector, T, index) \
-    _ecs_vector_remove_index(vector, ECS_VECTOR_T(T), index)
+#define ecs_vector_remove(vector, T, index) \
+    _ecs_vector_remove(vector, ECS_VECTOR_T(T), index)
 
-#define ecs_vector_remove_index_t(vector, size, alignment, index) \
-    _ecs_vector_remove_index(vector, ECS_VECTOR_U(size, alignment), index)
+#define ecs_vector_remove_t(vector, size, alignment, index) \
+    _ecs_vector_remove(vector, ECS_VECTOR_U(size, alignment), index)
 
 /** Shrink vector to make the size match the count. */
 FLECS_API

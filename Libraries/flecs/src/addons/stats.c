@@ -142,7 +142,7 @@ void ecs_get_world_stats(
 
     record_gauge(&s->entity_count, t, ecs_sparse_count(world->store.entity_index));
     record_gauge(&s->component_count, t, ecs_count_id(world, ecs_id(EcsComponent)));
-    record_gauge(&s->query_count, t, ecs_vector_count(world->queries));
+    record_gauge(&s->query_count, t, ecs_sparse_count(world->queries));
     record_gauge(&s->system_count, t, ecs_count_id(world, ecs_id(EcsSystem)));
 
     record_counter(&s->new_count, t, world->new_count);
@@ -205,8 +205,6 @@ void ecs_get_query_stats(
     ecs_assert(query != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_assert(s != NULL, ECS_INVALID_PARAMETER, NULL);
     (void)world;
-
-    world = ecs_get_world(world);
 
     int32_t t = s->t = t_next(s->t);
 

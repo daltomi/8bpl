@@ -36,6 +36,11 @@ typedef struct ecs_column_t ecs_column_t;
 /** Table data */
 typedef struct ecs_data_t ecs_data_t;
 
+/* Sparse set */
+typedef struct ecs_sparse_t ecs_sparse_t;
+
+/* Switch list */
+typedef struct ecs_switch_t ecs_switch_t;
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Non-opaque types
@@ -58,10 +63,10 @@ struct ecs_ref_t {
 };
 
 /** Array of entity ids that, other than a type, can live on the stack */
-typedef struct ecs_entities_t {
+typedef struct ecs_ids_t {
     ecs_entity_t *array;    /**< An array with entity ids */
     int32_t count;          /**< The number of entities in the array */
-} ecs_entities_t;
+} ecs_ids_t;
 
 typedef struct ecs_page_cursor_t {
     int32_t first;
@@ -76,7 +81,7 @@ typedef struct ecs_page_iter_t {
 
 /** Table specific data for iterators */
 typedef struct ecs_iter_table_t {
-    int32_t *columns;        /**< Mapping from query columns to table columns */
+    int32_t *columns;         /**< Mapping from query terms to table columns */
     ecs_table_t *table;       /**< The current table. */
     ecs_data_t *data;         /**< Table component data */
     ecs_entity_t *components; /**< Components in current table */
@@ -87,7 +92,7 @@ typedef struct ecs_iter_table_t {
 /** Scope-iterator specific data */
 typedef struct ecs_scope_iter_t {
     ecs_filter_t filter;
-    ecs_vector_t *tables;
+    ecs_map_iter_t tables;
     int32_t index;
     ecs_iter_table_t table;
 } ecs_scope_iter_t;
@@ -135,6 +140,7 @@ struct ecs_iter_t {
     ecs_world_t *world;           /**< The world */
     ecs_world_t *real_world;      /**< Actual world. This differs from world when using threads.  */
     ecs_entity_t system;          /**< The current system (if applicable) */
+    ecs_entity_t event;           /**< The event (if applicable) */
     ecs_query_iter_kind_t kind;
 
     ecs_iter_table_t *table;      /**< Table related data */
@@ -146,7 +152,9 @@ struct ecs_iter_t {
     void *table_columns;          /**< Table component data */
     ecs_entity_t *entities;       /**< Entity identifiers */
 
-    void *param;                  /**< User data (EcsContext or param argument) */
+    void *param;                  /**< Param passed to ecs_run */
+    void *ctx;                    /**< System context */
+    void *binding_ctx;            /**< Binding context */
     FLECS_FLOAT delta_time;       /**< Time elapsed since last frame */
     FLECS_FLOAT delta_system_time;/**< Time elapsed since last system invocation */
     FLECS_FLOAT world_time;       /**< Time elapsed since start of simulation */
@@ -156,7 +164,7 @@ struct ecs_iter_t {
     int32_t count;                /**< Number of entities to process by system */
     int32_t total_count;          /**< Total number of entities in table */
 
-    ecs_entities_t *triggered_by; /**< Component(s) that triggered the system */
+    ecs_ids_t *triggered_by; /**< Component(s) that triggered the system */
     ecs_entity_t interrupted_by;  /**< When set, system execution is interrupted */
 
     union {
@@ -197,6 +205,8 @@ typedef struct ecs_match_failure_t {
 //// Function types
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef struct EcsComponentLifecycle EcsComponentLifecycle;
+
 /** Constructor/destructor. Used for initializing / deinitializing components. */
 typedef void (*ecs_xtor_t)(
     ecs_world_t *world,
@@ -223,6 +233,32 @@ typedef void (*ecs_copy_t)(
 typedef void (*ecs_move_t)(
     ecs_world_t *world,
     ecs_entity_t component,
+    const ecs_entity_t *dst_entity,
+    const ecs_entity_t *src_entity,
+    void *dst_ptr,
+    void *src_ptr,
+    size_t size,
+    int32_t count,
+    void *ctx);
+
+/** Copy ctor */
+typedef void (*ecs_copy_ctor_t)(
+    ecs_world_t *world,
+    ecs_entity_t component,
+    const EcsComponentLifecycle *callbacks,
+    const ecs_entity_t *dst_entity,
+    const ecs_entity_t *src_entity,
+    void *dst_ptr,
+    const void *src_ptr,
+    size_t size,
+    int32_t count,
+    void *ctx);
+
+/** Move ctor */
+typedef void (*ecs_move_ctor_t)(
+    ecs_world_t *world,
+    ecs_entity_t component,
+    const EcsComponentLifecycle *callbacks,
     const ecs_entity_t *dst_entity,
     const ecs_entity_t *src_entity,
     void *dst_ptr,

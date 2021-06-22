@@ -58,12 +58,20 @@ bool ecs_is_component_enabled_w_entity(
     return ecs_is_component_enabled_w_id(world, entity, id);
 }
 
+const void* ecs_get_w_id(
+    const ecs_world_t *world,
+    ecs_entity_t entity,
+    ecs_id_t id)
+{
+    return ecs_get_id(world, entity, id);
+}
+
 const void* ecs_get_w_entity(
     const ecs_world_t *world,
     ecs_entity_t entity,
     ecs_id_t id)
 {
-    return ecs_get_w_id(world, entity, id);
+    return ecs_get_id(world, entity, id);
 }
 
 const void* ecs_get_ref_w_entity(
@@ -99,7 +107,7 @@ ecs_entity_t ecs_set_ptr_w_entity(
     size_t size,
     const void *ptr)
 {
-    return ecs_set_ptr_w_id(world, entity, id, size, ptr);
+    return ecs_set_id(world, entity, id, size, ptr);
 }
 
 bool ecs_has_entity(
@@ -211,14 +219,14 @@ int32_t ecs_column_index_from_name(
     const ecs_iter_t *it,
     const char *name)
 {
-    ecs_sig_column_t *column = NULL;
     if (it->query) {
-        int32_t i, count = ecs_vector_count(it->query->sig.columns);
+        ecs_term_t *terms = it->query->filter.terms;
+        int32_t i, count = it->query->filter.term_count;
+
         for (i = 0; i < count; i ++) {
-            column = ecs_vector_get(
-                it->query->sig.columns, ecs_sig_column_t, i);
-            if (column->name) {
-                if (!strcmp(name, column->name)) {
+            ecs_term_t *term = &terms[i];
+            if (term->name) {
+                if (!strcmp(name, term->name)) {
                     return i + 1;
                 }
             }
@@ -290,6 +298,32 @@ size_t ecs_table_column_size(
     int32_t column_index)
 {
     return ecs_iter_column_size(it, column_index);
+}
+
+ecs_query_t* ecs_query_new(
+    ecs_world_t *world,
+    const char *expr)
+{
+    return ecs_query_init(world, &(ecs_query_desc_t){
+        .filter.expr = expr
+    });
+}
+
+void ecs_query_free(
+    ecs_query_t *query)
+{
+    ecs_query_fini(query);
+}
+
+ecs_query_t* ecs_subquery_new(
+    ecs_world_t *world,
+    ecs_query_t *parent,
+    const char *expr)
+{
+    return ecs_query_init(world, &(ecs_query_desc_t){
+        .filter.expr = expr,
+        .parent = parent
+    });
 }
 
 #endif

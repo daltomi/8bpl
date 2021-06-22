@@ -85,6 +85,16 @@ bool ecs_type_owns_type(
     bool owned);
 
 FLECS_API
+bool ecs_type_find_id(
+    const ecs_world_t *world,
+    ecs_type_t type,
+    ecs_entity_t id,
+    ecs_entity_t rel,
+    int32_t min_depth,
+    int32_t max_depth,
+    ecs_entity_t *out);
+
+FLECS_API
 ecs_entity_t ecs_type_get_entity_for_xor(
     ecs_world_t *world,
     ecs_type_t type,
@@ -96,7 +106,7 @@ int32_t ecs_type_index_of(
     ecs_entity_t component);
 
 FLECS_API
-int32_t ecs_type_pair_index_of(
+int32_t ecs_type_match(
     ecs_type_t type, 
     int32_t start_index, 
     ecs_entity_t pair);

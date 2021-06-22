@@ -15,9 +15,11 @@ bool path_append(
     ecs_assert(world->magic == ECS_WORLD_MAGIC, ECS_INTERNAL_ERROR, NULL);
 
     ecs_type_t type = ecs_get_type(world, child);
-    ecs_entity_t cur = ecs_find_in_type(world, type, component, EcsChildOf);
+    ecs_entity_t cur;
+    ecs_type_find_id(world, type, component, EcsChildOf, 1, 0, &cur);
     
     if (cur) {
+        cur = ecs_get_alive(world, cur);
         if (cur != parent && cur != EcsFlecsCore) {
             path_append(world, parent, cur, component, sep, prefix, buf);
             ecs_strbuf_appendstr(buf, sep);
@@ -61,18 +63,22 @@ static
 bool is_number(
     const char *name)
 {
+    ecs_assert(name != NULL, ECS_INTERNAL_ERROR, NULL);
+    
     if (!isdigit(name[0])) {
         return false;
     }
 
-    ecs_size_t i, s = ecs_os_strlen(name);
-    for (i = 1; i < s; i ++) {
-        if (!isdigit(name[i])) {
+    ecs_size_t i, length = ecs_os_strlen(name);
+    for (i = 1; i < length; i ++) {
+        char ch = name[i];
+
+        if (!isdigit(ch)) {
             break;
         }
     }
 
-    return i >= s;
+    return i >= length;
 }
 
 static 
@@ -87,7 +93,8 @@ ecs_entity_t name_to_id(
 static
 ecs_entity_t find_child_in_table(
     const ecs_table_t *table,
-    const char *name)
+    const char *name,
+    const char *symbol)
 {
     /* If table doesn't have EcsName, then don't bother */
     int32_t name_index = ecs_type_index_of(table->type, ecs_id(EcsName));
@@ -105,19 +112,27 @@ ecs_entity_t find_child_in_table(
         return 0;
     }
 
-    if (is_number(name)) {
-        return name_to_id(name);
-    }
-
     ecs_column_t *column = &data->columns[name_index];
     EcsName *names = ecs_vector_first(column->data, EcsName);
 
-    for (i = 0; i < count; i ++) {
-        const char *cur_name = names[i].value;
-        const char *cur_sym = names[i].symbol;
-        if ((cur_name && !strcmp(cur_name, name)) || (cur_sym && !strcmp(cur_sym, name))) {
-            return *ecs_vector_get(data->entities, ecs_entity_t, i);
+    if (name) {
+        if (is_number(name)) {
+            return name_to_id(name);
         }
+ 
+        for (i = 0; i < count; i ++) {
+            const char *cur_name = names[i].value;
+            if (cur_name && !strcmp(cur_name, name)) {
+                return *ecs_vector_get(data->entities, ecs_entity_t, i);
+            }
+        }        
+    } else if (symbol) {
+        for (i = 0; i < count; i ++) {
+            const char *cur_name = names[i].symbol;
+            if (cur_name && !strcmp(cur_name, symbol)) {
+                return *ecs_vector_get(data->entities, ecs_entity_t, i);
+            }
+        }         
     }
 
     return 0;
@@ -127,7 +142,7 @@ static
 ecs_entity_t find_child(
     const ecs_world_t *world,
     ecs_entity_t parent,
-    const char *name)
+    const char *symbol)
 {        
     ecs_assert(world != NULL, ECS_INTERNAL_ERROR, NULL);
     ecs_assert(world->magic == ECS_WORLD_MAGIC, ECS_INTERNAL_ERROR, NULL);
@@ -135,7 +150,7 @@ ecs_entity_t find_child(
     (void)parent;
     
     ecs_sparse_each(world->store.tables, ecs_table_t, table, {
-        ecs_entity_t result = find_child_in_table(table, name);
+        ecs_entity_t result = find_child_in_table(table, NULL, symbol);
         if (result) {
             return result;
         }
@@ -166,19 +181,35 @@ const char *path_elem(
     const char *sep)
 {
     const char *ptr;
-    char *bptr, ch;
+    char *bptr = buff, ch;
+    int32_t template_nesting = 0;
 
-    for (bptr = buff, ptr = path; (ch = *ptr); ptr ++) {
-        ecs_assert(bptr - buff < ECS_MAX_NAME_LENGTH, ECS_INVALID_PARAMETER, 
-            NULL);
-            
-        if (is_sep(&ptr, sep)) {
-            *bptr = '\0';
-            return ptr + 1;
-        } else {
-            *bptr = ch;
-            bptr ++;
+    memset(buff, 0, 1); /* silence scan-build warning in is_number, see below */
+
+    for (ptr = path; (ch = *ptr); ptr ++) {
+        /* Ensure we're never writing past the end of the buffer */
+        ecs_assert(bptr - buff < ECS_MAX_NAME_LENGTH, 
+            ECS_INVALID_PARAMETER, NULL);
+
+        if (ch == '<') {
+            template_nesting ++;
+        } else if (ch == '>') {
+            template_nesting --;
         }
+
+        ecs_assert(template_nesting >= 0, ECS_INVALID_PARAMETER, path);
+
+        if (!template_nesting && is_sep(&ptr, sep)) {
+            ptr ++;
+            
+            /* if bptr != buff, string will be 0 terminated at 214, otherwise
+             * function will return NULL */
+            break;
+        }
+
+        /* Unconditionally assign a valid value to bptr */
+        *bptr = ch;
+        bptr ++;
     }
 
     if (bptr != buff) {
@@ -230,6 +261,10 @@ char* ecs_get_path_w_sep(
 {
     ecs_assert(world != NULL, ECS_INTERNAL_ERROR, NULL);
     world = ecs_get_world(world);
+
+    if (!sep) {
+        sep = ".";
+    }
         
     ecs_strbuf_t buf = ECS_STRBUF_INIT;
 
@@ -248,21 +283,19 @@ ecs_entity_t ecs_lookup_child(
     const char *name)
 {
     ecs_assert(world != NULL, ECS_INTERNAL_ERROR, NULL);
-    world = ecs_get_world(world);    
-    
+    world = ecs_get_world(world);
     ecs_entity_t result = 0;
 
-    ecs_vector_t *child_tables = ecs_map_get_ptr(
-        world->child_tables, ecs_vector_t*, parent);
-    
-    if (child_tables) {
-        ecs_vector_each(child_tables, ecs_table_t*, table_ptr, {
-            ecs_table_t *table = *table_ptr;
-            result = find_child_in_table(table, name);
+    ecs_id_record_t *r = ecs_get_id_record(world, ecs_pair(EcsChildOf, parent));
+    if (r && r->table_index) {        
+        ecs_map_iter_t it = ecs_map_iter(r->table_index);
+        ecs_table_record_t *tr;
+        while ((tr = ecs_map_next(&it, ecs_table_record_t, NULL))) {
+            result = find_child_in_table(tr->table, name, NULL);
             if (result) {
                 return result;
-            }
-        });
+            }            
+        }
     }
 
     return result;
@@ -314,14 +347,23 @@ ecs_entity_t ecs_lookup_path_w_sep(
     ecs_entity_t parent,
     const char *path,
     const char *sep,
-    const char *prefix)
+    const char *prefix,
+    bool recursive)
 {
     if (!path) {
         return 0;
     }
 
+    if (!sep) {
+        sep = ".";
+    }
+
     ecs_assert(world != NULL, ECS_INTERNAL_ERROR, NULL);
-    world = ecs_get_world(world);    
+    world = ecs_get_world(world);
+
+    if (path[0] == '.' && !path[1]) {
+        return EcsThis;
+    }
 
     ecs_entity_t e = find_as_alias(world, path);
     if (e) {
@@ -351,7 +393,7 @@ retry:
     }
 
 tail:
-    if (!cur) {
+    if (!cur && recursive) {
         if (!core_searched) {
             if (parent) {
                 parent = ecs_get_object_w_id(world, parent, EcsChildOf, 0);
@@ -373,7 +415,7 @@ ecs_entity_t ecs_set_scope(
     ecs_stage_t *stage = ecs_stage_from_world(&world);
 
     ecs_entity_t e = ecs_pair(EcsChildOf, scope);
-    ecs_entities_t to_add = {
+    ecs_ids_t to_add = {
         .array = &e,
         .count = 1
     };
@@ -400,43 +442,23 @@ ecs_entity_t ecs_get_scope(
 
 int32_t ecs_get_child_count(
     const ecs_world_t *world,
-    ecs_entity_t entity)
+    ecs_entity_t parent)
 {
     ecs_assert(world != NULL, ECS_INTERNAL_ERROR, NULL);
     world = ecs_get_world(world);
 
-    ecs_vector_t *tables = ecs_map_get_ptr(
-        world->child_tables, ecs_vector_t*, entity);
-    if (!tables) {
-        return 0;
-    } else {
-        int32_t count = 0;
+    int32_t count = 0;
 
-        ecs_vector_each(tables, ecs_table_t*, table_ptr, {
-            ecs_table_t *table = *table_ptr;
-            count += ecs_table_count(table);
-        });
-
-        return count;
+    ecs_id_record_t *r = ecs_get_id_record(world, ecs_pair(EcsChildOf, parent));
+    if (r && r->table_index) {
+        ecs_map_iter_t it = ecs_map_iter(r->table_index);
+        ecs_table_record_t *tr;
+        while ((tr = ecs_map_next(&it, ecs_table_record_t, NULL))) {
+            count += ecs_table_count(tr->table);
+        }
     }
-}
 
-ecs_iter_t ecs_scope_iter(
-    ecs_world_t *iter_world,
-    ecs_entity_t parent)
-{
-    ecs_assert(iter_world != NULL, ECS_INTERNAL_ERROR, NULL);
-    const ecs_world_t *world = (ecs_world_t*)ecs_get_world(iter_world);
-
-    ecs_scope_iter_t iter = {
-        .tables = ecs_map_get_ptr(world->child_tables, ecs_vector_t*, parent),
-        .index = 0
-    };
-
-    return (ecs_iter_t) {
-        .world = iter_world,
-        .iter.parent = iter
-    };
+    return count;
 }
 
 ecs_iter_t ecs_scope_iter_w_filter(
@@ -445,34 +467,42 @@ ecs_iter_t ecs_scope_iter_w_filter(
     ecs_filter_t *filter)
 {
     ecs_assert(iter_world != NULL, ECS_INTERNAL_ERROR, NULL);
-    ecs_world_t *world = (ecs_world_t*)ecs_get_world(iter_world);
-
-    ecs_scope_iter_t iter = {
-        .filter = *filter,
-        .tables = ecs_map_get_ptr(world->child_tables, ecs_vector_t*, parent),
-        .index = 0
+    const ecs_world_t *world = (ecs_world_t*)ecs_get_world(iter_world);
+    ecs_iter_t it = {
+        .world = iter_world
     };
 
-    return (ecs_iter_t) {
-        .world = iter_world,
-        .iter.parent = iter,
-        .table_count = ecs_vector_count(iter.tables)
-    };
+    ecs_id_record_t *r = ecs_get_id_record(world, ecs_pair(EcsChildOf, parent));
+    if (r && r->table_index) {
+        it.iter.parent.tables = ecs_map_iter(r->table_index);
+        it.table_count = ecs_map_count(r->table_index);
+        if (filter) {
+            it.iter.parent.filter = *filter;
+        }
+    }
+
+    return it;
+}
+
+ecs_iter_t ecs_scope_iter(
+    ecs_world_t *iter_world,
+    ecs_entity_t parent)
+{
+    return ecs_scope_iter_w_filter(iter_world, parent, NULL);
 }
 
 bool ecs_scope_next(
     ecs_iter_t *it)
 {
     ecs_scope_iter_t *iter = &it->iter.parent;
-    ecs_vector_t *tables = iter->tables;
+    ecs_map_iter_t *tables = &iter->tables;
     ecs_filter_t filter = iter->filter;
-
-    int32_t count = ecs_vector_count(tables);
-    int32_t i;
-
-    for (i = iter->index; i < count; i ++) {
-        ecs_table_t *table = *ecs_vector_get(tables, ecs_table_t*, i);
+    ecs_table_record_t *tr;
+    while ((tr = ecs_map_next(tables, ecs_table_record_t, NULL))) {
+        ecs_table_t *table = tr->table;
         ecs_assert(table != NULL, ECS_INTERNAL_ERROR, NULL);
+
+        iter->index ++;
 
         ecs_data_t *data = ecs_table_get_data(table);
         if (!data) {
@@ -495,7 +525,6 @@ bool ecs_scope_next(
         it->table_columns = data->columns;
         it->count = ecs_table_count(table);
         it->entities = ecs_vector_first(data->entities, ecs_entity_t);
-        iter->index = i + 1;
 
         return true;
     }
@@ -524,6 +553,10 @@ ecs_entity_t ecs_add_path_w_sep(
     const char *prefix)
 {
     ecs_assert(world != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    if (!sep) {
+        sep = ".";
+    }    
 
     if (!path) {
         if (!entity) {
@@ -583,6 +616,10 @@ ecs_entity_t ecs_new_from_path_w_sep(
     const char *sep,
     const char *prefix)
 {
+    if (!sep) {
+        sep = ".";
+    }
+
     return ecs_add_path_w_sep(world, 0, parent, path, sep, prefix);
 }
 

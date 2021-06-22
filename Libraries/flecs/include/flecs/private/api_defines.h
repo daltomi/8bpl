@@ -34,6 +34,13 @@ extern "C" {
 #define FLECS_LEGACY
 #endif
 
+/* Some symbols are only exported when building in debug build, to enable
+ * whitebox testing of internal datastructures */
+#ifndef NDEBUG
+#define FLECS_DBG_API FLECS_API
+#else
+#define FLECS_DBG_API
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Language support defines
@@ -77,9 +84,9 @@ typedef int32_t ecs_size_t;
 #endif
 
 #if defined(__GNUC__)
-#define ECS_UNUSED __attribute__((unused))
+#define ECS_UNUSED(v) __attribute__((unused)) v
 #else
-#define ECS_UNUSED
+#define ECS_UNUSED(v) (void)v
 #endif
 
 #ifndef FLECS_NO_DEPRECATED_WARNINGS
@@ -112,13 +119,10 @@ typedef int32_t ecs_size_t;
 
 /** System module component ids */
 #define FLECS__EEcsTrigger (4)
+#define FLECS__EEcsObserver (11)
 #define FLECS__EEcsSystem (5)
 #define FLECS__EEcsTickSource (7)
-#define FLECS__EEcsSignatureExpr (8)
-#define FLECS__EEcsSignature (9)
 #define FLECS__EEcsQuery (10)
-#define FLECS__EEcsIterAction (11)
-#define FLECS__EEcsContext (12)
 
 /** Pipeline module component ids */
 #define FLECS__EEcsPipelineQuery (13)
@@ -139,7 +143,9 @@ typedef int32_t ecs_size_t;
 #define ECS_GENERATION_INC(e) ((e & ~ECS_GENERATION_MASK) | ((ECS_GENERATION(e) + 1) << 32))
 #define ECS_COMPONENT_MASK    (~ECS_ROLE_MASK)
 #define ECS_HAS_ROLE(e, role) ((e & ECS_ROLE_MASK) == ECS_##role)
-#define ECS_PAIR_RELATION(e)  (ECS_HAS_ROLE(e, PAIR) ? ecs_entity_t_hi(e & ECS_COMPONENT_MASK) : (e & ECS_ROLE_MASK))
+#define ECS_PAIR_RELATION(e)  (ECS_HAS_ROLE(e, PAIR) ? ecs_entity_t_hi(e & ECS_COMPONENT_MASK) :\
+    (((e & ECS_ROLE_MASK) == ECS_CHILDOF) ? EcsChildOf :\
+        ((e & ECS_ROLE_MASK) == ECS_INSTANCEOF) ? EcsIsA : (e & ECS_ROLE_MASK)))
 #define ECS_PAIR_OBJECT(e)    (ecs_entity_t_lo(e))
 #define ECS_HAS_PAIR(e, rel)  (ECS_HAS_ROLE(e, PAIR) && (ECS_PAIR_RELATION(e) == rel))
 
@@ -195,6 +201,7 @@ typedef int32_t ecs_size_t;
 #define ecs_pair(pred, obj) (ECS_PAIR | ecs_entity_t_comb(obj, pred))
 
 /* Get object from pair with the correct (current) generation count */
+#define ecs_pair_relation(world, pair) ecs_get_alive(world, ECS_PAIR_RELATION(pair))
 #define ecs_pair_object(world, pair) ecs_get_alive(world, ECS_PAIR_OBJECT(pair))
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -316,7 +323,7 @@ typedef int32_t ecs_size_t;
 #define ECS_NOT (ECS_ROLE | (0x76ull << 56))
 #define ECS_TRAIT ECS_PAIR
 
-#define EcsSingleton   (ECS_HI_COMPONENT_ID + 26)
+#define EcsSingleton   (ECS_HI_COMPONENT_ID + 37)
 
 #ifdef __cplusplus
 }
